@@ -403,22 +403,17 @@ except ImportError:  # ponytail: Python < 3.11 skips TOML manifests, vendor a pa
 
 
 def _toml(text):
-    try:
-        return tomllib.loads(text) if tomllib else {}
-    except (ValueError, TypeError):
-        return {}
+    """Parsed TOML; raises ValueError if invalid (caller decides fail-open vs closed)."""
+    return tomllib.loads(text) if tomllib else {}
 
 
 def _npm_deps(text):
-    try:
-        data = json.loads(text)
-    except ValueError:
-        return set()
+    data = json.loads(text) if text.strip() else {}  # raises ValueError if invalid
     out = set()
     for section in ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies"):
         deps = data.get(section) if isinstance(data, dict) else None
         for k, v in (deps if isinstance(deps, dict) else {}).items():
-            v = str(v)
+            v = str(v).strip()
             if v.startswith("npm:"):  # "alias": "npm:real-pkg@1"
                 k = v[4:]
             elif re.match(r"^[a-z+]+:", v) or "/" in v:  # file:, link:, workspace:, git+..., urls, user/repo
@@ -443,6 +438,8 @@ def _pyproject_deps(data):
     proj, poetry = data.get("project", {}), data.get("tool", {}).get("poetry", {})
     specs = list(proj.get("dependencies", [])) + list(data.get("build-system", {}).get("requires", []))
     specs += list(data.get("tool", {}).get("uv", {}).get("dev-dependencies", []))
+    for group in data.get("tool", {}).get("pdm", {}).get("dev-dependencies", {}).values():
+        specs += [g for g in group if isinstance(g, str)]
     for group in list(proj.get("optional-dependencies", {}).values()) + list(data.get("dependency-groups", {}).values()):
         specs += [g for g in group if isinstance(g, str)]
     tables = [poetry.get("dependencies", {}), poetry.get("dev-dependencies", {})]
@@ -478,8 +475,12 @@ def _gem_deps(text):
 
 
 def manifest_deps(path, text):
-    """Return (ecosystem, {names}) declared in a dependency manifest, else None."""
+    """Return (ecosystem, {names}) declared in a dependency manifest, else None.
+
+    Raises ValueError if a JSON/TOML manifest doesn't parse.
+    """
     base = os.path.basename(path).lower()  # macOS/Windows: Package.json IS package.json
+    text = text.lstrip("﻿")  # npm and cargo accept a BOM; json.loads doesn't
     if base == "package.json":
         return "npm", _npm_deps(text)
     if re.match(r"^requirements.*\.(txt|in)$", base):
@@ -514,15 +515,26 @@ def check_edit(tool, inp, cwd=None):
     Without this, `npm i evil` is caught but writing "evil" into package.json and
     running a bare `npm install` is not.
     """
-    path = os.path.join(cwd or ".", inp.get("file_path", ""))
+    path = os.path.realpath(os.path.join(cwd or ".", inp.get("file_path", "")))  # follow symlinks
     if manifest_deps(path, "") is None:
         return []
+    name = os.path.basename(path)
     old = _read(path) or ""
     new = _edited_text(tool, inp, old)
+    # fail closed: if we can't see the result (agent edits may normalize quotes/whitespace
+    # differently from us) or can't parse it, we can't tell what it adds
     if new is None:
-        return []
-    eco, after = manifest_deps(path, new)
-    added = sorted(after - manifest_deps(path, old)[1])
+        return ["%s: pkg-guard could not apply this edit to check it. Re-read the file and "
+                "retry with its exact text." % name]
+    try:
+        eco, after = manifest_deps(path, new)
+    except ValueError as e:
+        return ["%s: does not parse (%s), so pkg-guard can't check its dependencies." % (name, e)]
+    try:
+        before = manifest_deps(path, old)[1]
+    except ValueError:
+        before = set()  # broken before: check everything
+    added = sorted(after - before)
     with ThreadPoolExecutor(max_workers=8) as ex:
         return [r for r in ex.map(lambda n: check(eco, n), added) if r]
 

@@ -192,8 +192,17 @@ class ManifestTest(unittest.TestCase):
                 out = pg.hook_output({"tool_name": "Edit", "tool_input": edit})
                 self.assertIn("blocked this dependency edit", out["hookSpecificOutput"]["permissionDecisionReason"])
                 self.assertEqual(calls, ["evil"])
-                # edits that don't apply, non-manifests, and unchanged deps are allowed
-                self.assertIsNone(pg.hook_output({"tool_name": "Edit", "tool_input": dict(edit, old_string="nope")}))
+                # fail closed: edits we can't apply or results that don't parse
+                for bad in [dict(edit, old_string="nope"), dict(edit, new_string='"evil": ')]:
+                    self.assertIsNotNone(pg.hook_output({"tool_name": "Edit", "tool_input": bad}))
+                # a symlink with an innocent name pointing at a manifest
+                os.symlink(path, os.path.join(d, "notes.txt"))
+                self.assertIsNotNone(pg.hook_output({"tool_name": "Write", "tool_input": {
+                    "file_path": os.path.join(d, "notes.txt"), "content": '{"dependencies": {"evil": "1"}}'}}))
+                # a BOM is fine for npm, so it must not hide deps from us
+                self.assertIsNotNone(pg.hook_output({"tool_name": "Write", "tool_input": {
+                    "file_path": path, "content": '﻿{"dependencies": {"evil": "1"}}'}}))
+                # non-manifests and unchanged deps are allowed
                 self.assertIsNone(pg.hook_output({"tool_name": "Write", "tool_input":
                                                   {"file_path": os.path.join(d, "x.js"), "content": "evil"}}))
                 multi = {"file_path": path, "edits": [{"old_string": "1", "new_string": "2"}]}
