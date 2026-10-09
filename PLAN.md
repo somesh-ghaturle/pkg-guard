@@ -14,6 +14,7 @@ have almost no users, or look like typosquats of popular packages.
 - **Fail open on network errors** (offline dev must keep working);
   `PKG_GUARD_FAIL_CLOSED=1` flips it.
 - **Escape hatch**: `PKG_GUARD_ALLOW=pkg1,pkg2` (set by the human, in the agent's env).
+- **Every new check ships with an offline test** (registry mocked) in `test_pkg_guard.py`.
 
 ## Detection rules
 
@@ -24,22 +25,43 @@ have almost no users, or look like typosquats of popular packages.
 | Too few users | npm weekly < 100, crates 90-day < 100, gems total < 1000 → deny |
 | Typosquat | 1 edit away from a popular package, not popular itself, and < 180 days old or low-ish downloads → deny |
 
-Ecosystems: npm (npm/pnpm/yarn/bun, npx/bunx/dlx), PyPI (pip, uv, poetry, pipx, uvx),
-crates.io (cargo), RubyGems (gem).
+## v0.1 — done
 
-## Phases
+1. **Core** — command parser, registry checks, typosquat check, `pkg-guard check` CLI, offline tests. ✅
+2. **Hooks** — `pkg-guard hook`, Claude Code + Codex config snippets, end-to-end CLI tests. ✅
+3. **Skill + plugin** — `skills/pkg-guard/SKILL.md`, plugin + marketplace manifests. ✅
+4. **Ship** — README, CI (3.9 + 3.13), tag `v0.1.0`, repo public. ✅
 
-1. **Core** — command parser, registry checks, typosquat check, `pkg-guard check "<cmd>"` CLI,
-   offline unit tests (registry mocked).
-2. **Hooks** — `pkg-guard hook` (stdin → deny JSON). Config snippets for Claude Code
-   (`settings.json`) and Codex (`hooks.json` / `config.toml`). End-to-end test feeding a real payload.
-3. **Skill + plugin** — `skills/pkg-guard/SKILL.md` (agent-agnostic: pick deps carefully,
-   never guess names). Claude Code plugin + marketplace manifest so install is
-   `/plugin marketplace add somesh-ghaturle/pkg-guard`.
-4. **Ship** — README with demo, GitHub Actions CI (3.9 + 3.13), tag v0.1.0, flip repo public.
+## v0.2 — close the remaining holes
 
-## Later (not v0.1)
+Ordered by how much risk each one removes.
 
-- Gemini CLI adapter (different hook output format), Go modules.
-- Install-script (`postinstall`) signal, maintainer-change signal.
-- Result cache; lockfile / `requirements.txt` scanning; dependency-confusion check on custom indexes.
+1. **Manifest edits** — the agent can skip `npm i evil` by writing `"evil": "^1"` into
+   `package.json` and running bare `npm install`. Hook `Edit|Write|MultiEdit` (Claude) /
+   `apply_patch` (Codex) on `package.json`, `requirements*.txt`, `pyproject.toml`,
+   `Cargo.toml`, `Gemfile`: diff old vs new dependency names, check only the added ones.
+   Update plugin hook matcher + example configs.
+2. **Nested `-r` / `-c` in requirements files** — follow includes (depth-capped, cycle-safe).
+3. **Go modules** — `go get x`, `go install x@v`. Existence via `proxy.golang.org/<mod>/@v/list`,
+   age via `@latest` `Time`. No download counts; typosquat vs a small popular list.
+4. **Result cache** — `~/.cache/pkg-guard/cache.json`, 24h TTL for "ok" results only
+   (never cache blocks or failures, so a fixed name is rechecked). Cuts latency and rate limits.
+5. **Release v0.2.0** — README/SKILL updates, bump version in `pkg_guard.py`,
+   `pyproject.toml`, `plugin.json`; tag.
+
+## v0.3 — better signals, more agents
+
+1. **Gemini CLI adapter** — `pkg-guard hook --format gemini` (BeforeTool event, its own
+   deny JSON). Example `settings.json`.
+2. **Install-script signal (npm)** — latest version has `preinstall/install/postinstall`
+   and the package is young or low-download → deny with that reason.
+3. **Generated popular list** — script that pulls top-N names per registry into
+   `popular.txt`-style data embedded in the file; improves typosquat recall.
+4. **Release v0.3.0.**
+
+## Maybe later (needs evidence it's worth it)
+
+- Maintainer-change signal (npm `maintainers` diff between recent versions).
+- Dependency-confusion check: package installed via custom `--index-url` also exists
+  on the public registry under the same name.
+- Lockfile scanning (`package-lock.json`, `uv.lock`) as a one-shot `pkg-guard scan` CLI.
