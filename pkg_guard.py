@@ -5,7 +5,6 @@ Usage:
   pkg_guard.py check "<shell command>"   exit 1 and print reasons if blocked
   pkg_guard.py hook                      PreToolUse hook (Claude Code, Codex): JSON on stdin
 """
-import codecs
 import fnmatch
 import json
 import os
@@ -200,6 +199,25 @@ def _clean(eco, arg):
     return arg.split("@")[0] or None
 
 
+_ANSI_C = {"a": "\a", "b": "\b", "e": "\x1b", "E": "\x1b", "f": "\f", "n": "\n", "r": "\r",
+           "t": "\t", "v": "\v", "\\": "\\", "'": "'", '"': '"', "?": "?"}
+
+
+def _ansi_c(raw):
+    """Decode the body of bash $'...' with bash's escape rules (never fails)."""
+    def repl(m):
+        e = m.group(1)
+        if e[0] in "xuU":
+            return chr(min(int(e[1:], 16), 0x10FFFF))
+        if e[0] in "01234567":
+            return chr(int(e, 8) & 0xFF)
+        if e[0] == "c":
+            return chr(ord(e[1]) & 0x1F)
+        return _ANSI_C.get(e, "\\" + e)  # unknown escapes stay literal, like bash
+    return re.sub(r"\\(x[0-9a-fA-F]{1,2}|u[0-9a-fA-F]{1,4}|U[0-9a-fA-F]{1,8}|[0-7]{1,3}|c.|.)",
+                  repl, raw, flags=re.S)
+
+
 def _normalize(command):
     """Rewrite bash-only syntax shlex doesn't know, tracking quote state like bash does.
 
@@ -219,12 +237,7 @@ def _normalize(command):
                 step = 2 if command[j] == "\\" else 1
                 buf.append(command[j:j + step])
                 j += step
-            raw = "".join(buf)
-            try:
-                val = codecs.decode(raw, "unicode_escape")
-            except (UnicodeError, ValueError):
-                val = raw
-            out.append(shlex.quote(val))
+            out.append(shlex.quote(_ansi_c("".join(buf))))
             i = j + 1
             continue
         if q is None and c == "$" and nxt == '"':

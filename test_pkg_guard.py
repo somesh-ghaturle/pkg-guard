@@ -39,6 +39,11 @@ class ParseTest(unittest.TestCase):
             # ANSI-C quoting
             "bash -c $'npm i evil'": [("npm", "evil")],
             "bash -c $'\\x6epm i evil'": [("npm", "evil")],
+            # bash escape grammar, incl. forms Python's unicode_escape rejects
+            "bash -c $'\\x6\\x65pm i evil \\u20ac'": [],  # \x6 is one hex digit -> "\x06epm"
+            "bash -c $'\\156pm i \\u0065vil'": [("npm", "evil")],
+            "bash -c $'n\\x70m i evil \u20ac'": [("npm", "evil"), ("npm", "\u20ac")],
+            "bash -c $'npm i evil\\?'": [("npm", "evil?")],
             "echo '$'&&npm i evil": [("npm", "evil")],
             "echo \"$'\"&&npm i evil": [("npm", "evil")],
             "bash -c 'cd app\nnpm i evil'": [("npm", "evil")],
