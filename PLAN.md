@@ -30,7 +30,7 @@ have almost no users, or look like typosquats of popular packages.
 1. **Core** — command parser, registry checks, typosquat check, `pkg-guard check` CLI, offline tests. ✅
 2. **Hooks** — `pkg-guard hook`, Claude Code + Codex config snippets, end-to-end CLI tests. ✅
 3. **Skill + plugin** — `skills/pkg-guard/SKILL.md`, plugin + marketplace manifests. ✅
-4. **Ship** — README, CI (3.9 + 3.13), tag `v0.1.0` ✅. Repo public: pending (owner flips it).
+4. **Ship** — README, CI (3.9 + 3.13), tag `v0.1.0` ✅. Repo public ✅.
 
 ## v0.2 — close the remaining holes
 

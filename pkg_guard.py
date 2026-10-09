@@ -157,7 +157,7 @@ def _clean(eco, arg):
             return None  # github shorthand
         return arg.split("@")[0] or None
     if eco == "pypi":
-        name = re.split(r"[\[<>=!~;@ ]", arg)[0]
+        name = re.split(r"[\[<>=!~;@,\s]", arg.strip())[0]
         return re.sub(r"[-_.]+", "-", name).lower() or None
     return arg.split("@")[0] or None
 
@@ -200,8 +200,9 @@ def _read(path):
 def _requirement_specs(text, base=None, _seen=None):
     """Package specs from requirements-file text; follows `-r other.txt` relative to `base`."""
     specs = []
+    text = re.sub(r"\\\r?\n", "", text)  # pip joins backslash-continued lines: "ev\<NL>il" is evil
     for ln in text.splitlines():
-        s = ln.split(" #")[0].strip() if not ln.lstrip().startswith("#") else ""
+        s = re.sub(r"(^|\s)#.*", "", ln).strip()
         m = re.match(r"^(?:-r|--requirement)[\s=]*(\S+)$", s)
         if m and base is not None:
             path = os.path.normpath(os.path.join(base, m.group(1)))
@@ -425,12 +426,23 @@ def _npm_deps(text):
             name = _clean("npm", k)
             if name:
                 out.add(name)
+
+    def aliases(v):  # overrides/resolutions can swap any transitive dep: "lodash": "npm:evil@1"
+        if isinstance(v, dict):
+            for x in v.values():
+                aliases(x)
+        elif isinstance(v, str) and v.startswith("npm:") and _clean("npm", v[4:]):
+            out.add(_clean("npm", v[4:]))
+    if isinstance(data, dict):
+        pnpm = data.get("pnpm") if isinstance(data.get("pnpm"), dict) else {}
+        aliases({"o": data.get("overrides"), "r": data.get("resolutions"), "p": pnpm.get("overrides")})
     return out
 
 
 def _pyproject_deps(data):
     proj, poetry = data.get("project", {}), data.get("tool", {}).get("poetry", {})
-    specs = list(proj.get("dependencies", []))
+    specs = list(proj.get("dependencies", [])) + list(data.get("build-system", {}).get("requires", []))
+    specs += list(data.get("tool", {}).get("uv", {}).get("dev-dependencies", []))
     for group in list(proj.get("optional-dependencies", {}).values()) + list(data.get("dependency-groups", {}).values()):
         specs += [g for g in group if isinstance(g, str)]
     tables = [poetry.get("dependencies", {}), poetry.get("dev-dependencies", {})]
@@ -443,7 +455,8 @@ def _pyproject_deps(data):
 
 def _cargo_deps(data):
     out = set()
-    for t in [data] + list(data.get("target", {}).values()):
+    # [workspace.dependencies] can rename (`foo = {package = "evil"}`) for members to inherit
+    for t in [data, data.get("workspace", {})] + list(data.get("target", {}).values()):
         for section in ("dependencies", "dev-dependencies", "build-dependencies"):
             for k, v in t.get(section, {}).items():
                 if isinstance(v, dict):
@@ -455,9 +468,10 @@ def _cargo_deps(data):
 
 
 def _gem_deps(text):
+    # ponytail: regex over Ruby source; catches `gem "x"`, `gem("x")`, `a; gem 'x'`, not metaprogramming
     out = set()
-    for ln in text.splitlines():
-        m = re.match(r"""^\s*gem\s+["']([^"']+)["'](.*)""", ln)
+    for ln in re.split(r"[\n;]", text):
+        m = re.match(r"""^\s*gem\s*\(?\s*["']([^"']+)["'](.*)""", ln)
         if m and not re.search(r"\b(git|github|path):|:(git|github|path)\s*=>", m.group(2)):
             out.add(m.group(1))
     return out
@@ -465,16 +479,16 @@ def _gem_deps(text):
 
 def manifest_deps(path, text):
     """Return (ecosystem, {names}) declared in a dependency manifest, else None."""
-    base = os.path.basename(path)
+    base = os.path.basename(path).lower()  # macOS/Windows: Package.json IS package.json
     if base == "package.json":
         return "npm", _npm_deps(text)
     if re.match(r"^requirements.*\.(txt|in)$", base):
-        specs = _requirement_specs(text)
+        specs = _requirement_specs(text, os.path.dirname(path))
     elif base == "pyproject.toml":
         specs = _pyproject_deps(_toml(text))
-    elif base == "Cargo.toml":
+    elif base == "cargo.toml":
         return "crates", _cargo_deps(_toml(text))
-    elif base == "Gemfile":
+    elif base == "gemfile":
         return "gems", _gem_deps(text)
     else:
         return None

@@ -87,7 +87,7 @@ pkg-guard check "npm install some-lib"   # exit 1 if blocked
 
 pkg-guard is a heuristic guard, not a sandbox. It checks install commands and, in
 Claude Code, manifest edits. It does not check imports, and in Codex it does not see
-manifest edits made with `apply_patch`. `pyproject.toml` and `Cargo.toml` edits are
+manifest edits made with `apply_patch`, and it does not see manifests changed by shell commands (`echo evil >> requirements.txt`). `pyproject.toml` and `Cargo.toml` edits are
 only checked on Python 3.11+ (needs `tomllib`). Packages from custom indexes are
 still checked against the public registry. Tarball and git URLs are not checked.
 

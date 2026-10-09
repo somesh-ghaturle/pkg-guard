@@ -143,6 +143,28 @@ class ManifestTest(unittest.TestCase):
         self.assertEqual(pg.manifest_deps("Gemfile", gem), ("gems", {"rails", "evil"}))
         self.assertIsNone(pg.manifest_deps("README.md", "evil"))
 
+    def test_manifest_bypasses_are_caught(self):
+        evil = {"evil"}
+        cases = {
+            # case-insensitive filesystems: Package.json overwrites package.json
+            "app/Package.json": '{"dependencies": {"evil": "1"}}',
+            "GEMFILE": 'gem("evil")',
+            # overrides swap a transitive dep for another package
+            "package.json": '{"overrides": {"lodash": "npm:evil@1"}, "pnpm": {"overrides": {"a": {"b": "npm:evil"}}}}',
+            "requirements.txt": "ev\\\nil\nfoo\t# comment\n",
+            "Gemfile": "source 'x'; gem 'evil'",
+        }
+        for path, text in cases.items():
+            got = pg.manifest_deps(path, text)[1] - {"foo"}
+            self.assertEqual(got, evil, path)
+
+    @unittest.skipIf(pg.tomllib is None, "TOML manifests need Python 3.11+")
+    def test_toml_bypasses_are_caught(self):
+        self.assertEqual(pg.manifest_deps("pyproject.toml", '[build-system]\nrequires = ["evil"]\n')[1], {"evil"})
+        self.assertEqual(pg.manifest_deps("pyproject.toml", '[tool.uv]\ndev-dependencies = ["evil"]\n')[1], {"evil"})
+        self.assertEqual(pg.manifest_deps("cargo.toml", '[workspace.dependencies]\nfoo = { package = "evil" }\n')[1],
+                         {"evil"})
+
     @unittest.skipIf(pg.tomllib is None, "TOML manifests need Python 3.11+")
     def test_toml_manifests(self):
         py = ('[project]\ndependencies = ["requests>=2", "evil"]\n'
