@@ -30,6 +30,14 @@ class ParseTest(unittest.TestCase):
             "go install -tags x github.com/evil/tool@latest": [("go", "github.com/evil/tool")],
             "go run github.com/evil/tool@v1 --flag arg.com": [("go", "github.com/evil/tool")],
             "go mod download rsc.io/quote": [("go", "rsc.io/quote")],
+            # module paths ending in .go are modules, not local files
+            "go get github.com/evil/x.go": [("go", "github.com/evil/x.go")],
+            "go run github.com/evil/main.go@v1": [("go", "github.com/evil/main.go")],
+            # go mod edit adds requirements without go get
+            "go mod edit -require=github.com/evil/a@v1 -replace github.com/x/y=github.com/evil/b@v1"
+            " -replace=github.com/x/z=../local": [("go", "github.com/evil/a"), ("go", "github.com/evil/b")],
+            # ANSI-C quoting
+            "bash -c $'npm i evil'": [("npm", "evil")],
         }
         for cmd, want in cases.items():
             self.assertEqual(pg.parse(cmd), want, cmd)
@@ -147,9 +155,17 @@ class CheckTest(unittest.TestCase):
             "https://proxy.golang.org/github.com/!burnt!sushi/toml/@latest": '{"Time": "2024-01-01T00:00:00Z"}',
             "https://proxy.golang.org/github.com/!burnt!sushi/toml/@v/list": "v1.10.0\nv0.2.0\nv1.2.0\n",
             "https://proxy.golang.org/github.com/!burnt!sushi/toml/@v/v0.2.0.info": '{"Time": "2013-01-01T00:00:00Z"}',
+            "https://api.deps.dev/v3/projects/github.com%2Fburntsushi%2Ftoml": '{"starsCount": 4700}',
         }
         with mock.patch.object(pg, "fetch", side_effect=lambda u: responses[u]):
-            self.assertGreater(pg.registry_info("go", "github.com/BurntSushi/toml/sub")["age_days"], 3000)
+            info = pg.registry_info("go", "github.com/BurntSushi/toml/sub")
+        self.assertGreater(info["age_days"], 3000)
+        self.assertEqual(info["downloads"], 4700)
+        # backdated commits make a fresh repo look old; zero stars still blocks it
+        responses["https://api.deps.dev/v3/projects/github.com%2Fburntsushi%2Ftoml"] = None
+        with mock.patch.object(pg, "fetch", side_effect=lambda u: responses[u]):
+            self.assertEqual(pg.registry_info("go", "github.com/BurntSushi/toml")["downloads"], 0)
+        self.assertIn("0 repo stars", self.run_check("go", "github.com/x/y", {"age_days": 4000, "downloads": 0}))
         with mock.patch.object(pg, "fetch", return_value=None):
             self.assertIsNone(pg.registry_info("go", "github.com/nope/nope/a/b"))
 
@@ -274,6 +290,14 @@ class CacheTest(unittest.TestCase):
             with open(pg.CACHE_FILE, "w") as f:
                 f.write("not json")
             self.assertFalse(pg._cached_ok("npm:fine-lib"))  # corrupt file is ignored
+            pg._remember_ok("npm:fine-lib")
+            self.assertEqual(os.stat(pg.CACHE_FILE).st_mode & 0o777, 0o600)
+            os.chmod(pg.CACHE_FILE, 0o666)
+            self.assertFalse(pg._cached_ok("npm:fine-lib"))  # writable by others: ignored
+            # the agent may not write the cache to whitelist a package
+            for payload in [{"tool_name": "Write", "tool_input": {"file_path": pg.CACHE_FILE, "content": "{}"}},
+                            {"tool_name": "Bash", "tool_input": {"command": "echo {} > " + pg.CACHE_FILE}}]:
+                self.assertIn("cache", pg.hook_output(payload)["hookSpecificOutput"]["permissionDecisionReason"])
 
 
 class HookTest(unittest.TestCase):

@@ -159,6 +159,14 @@ def _match(tokens):
         return "go", t[2:], False
     if cmd == "go" and sub == "mod" and sub2 == "download":
         return "go", t[3:], False
+    if cmd == "go" and sub == "mod" and sub2 == "edit":
+        args, it = [], iter(t[3:])
+        for a in it:
+            m = re.match(r"^--?(require|replace)(?:=(.*))?$", a)
+            if m:
+                v = m.group(2) if m.group(2) is not None else next(it, "")
+                args.append(v.split("=", 1)[1] if m.group(1) == "replace" and "=" in v else v)
+        return "go", args, False
     if cmd == "go" and sub == "run":  # `go run mod@v` fetches and runs a remote module
         return "go", t[2:], True
     return None
@@ -175,7 +183,7 @@ def _clean(eco, arg):
     if eco == "go":
         path, _, ver = arg.partition("@")
         # no dot in the first element = stdlib or local (fmt, ./..., all); @none removes a dep
-        if ver == "none" or "." not in path.split("/")[0] or path.endswith(".go"):
+        if ver == "none" or "." not in path.split("/")[0] or (not ver and "/" not in path and path.endswith(".go")):
             return None
         return re.sub(r"/\.\.\.$", "", path)
     if eco == "npm":
@@ -193,6 +201,8 @@ def _clean(eco, arg):
 
 def _segments(command):
     """Split a shell command into simple-command token lists, respecting quotes."""
+    # ponytail: $'..' escapes like \x6e aren't decoded, only the quoting is normalized
+    command = re.sub(r"\$(['\"])", r"\1", command)
     for line in command.splitlines():
         lex = shlex.shlex(line, posix=True, punctuation_chars=PUNCT)
         lex.whitespace_split = True
@@ -330,23 +340,31 @@ def fetch_json(url):
 
 def _go_info(path):
     """Go module info via proxy.golang.org. `path` may be a package inside a module."""
-    esc = re.sub(r"[A-Z]", lambda m: "!" + m.group().lower(), path)  # proxy case-encoding
+    root = path
     # ponytail: walk up at most 3 parents to find the module root; deeper package paths read as missing
     for _ in range(4):
+        esc = re.sub(r"[A-Z]", lambda m: "!" + m.group().lower(), root)  # proxy case-encoding
         base = "https://proxy.golang.org/%s/@" % esc
         latest = fetch_json(base + "latest")
         if latest is not None:
             break
-        if esc.count("/") < 2:
+        if root.count("/") < 2:
             return None
-        esc = esc.rsplit("/", 1)[0]
+        root = root.rsplit("/", 1)[0]
     else:
         return None
     tags = (fetch(base + "v/list") or "").split()
     first = min(tags, key=lambda v: [int(x) for x in re.findall(r"\d+", v.split("-")[0])], default=None)
-    # ponytail: age of the lowest semver tag, not the first upload; republished old tags look old
+    # The proxy's Time is the git commit time, which the author controls (backdated commits),
+    # so age alone is weak for Go. Repo stars from deps.dev are the signal they can't set.
     info = fetch_json(base + "v/%s.info" % first) if first else latest
-    return {"age_days": _days_since((info or latest).get("Time")), "downloads": None}
+    stars = None
+    if root.split("/")[0] in ("github.com", "gitlab.com", "bitbucket.org"):
+        proj = fetch_json("https://api.deps.dev/v3/projects/" +
+                          urllib.parse.quote("/".join(root.split("/")[:3]).lower(), safe=""))
+        stars = (proj or {}).get("starsCount") or 0  # not indexed = nobody depends on it
+    # ponytail: vanity domains (go.uber.org/...) get no star signal; map them via deps.dev if needed
+    return {"age_days": _days_since((info or latest).get("Time")), "downloads": stars}
 
 
 def _days_since(ts):
@@ -391,7 +409,8 @@ def registry_info(eco, name):
     raise ValueError(eco)
 
 
-MIN_DOWNLOADS = {"npm": 100, "crates": 100, "gems": 1000}  # weekly / 90-day / total
+MIN_DOWNLOADS = {"npm": 100, "crates": 100, "gems": 1000, "go": 10}  # weekly / 90-day / total / repo stars
+UNITS = {"go": "repo stars"}
 
 
 def _edit_distance(a, b):
@@ -427,13 +446,16 @@ def _go_private(path):
 # failures are never cached, so a corrected name or a recovered registry is rechecked.
 # ponytail: the agent can write this file too; pkg-guard is a guard against mistakes, not a sandbox
 CACHE_FILE = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"),
-                          "pkg-guard", "ok.json")
+                          "pkg-guard", "pkg-guard-ok.json")
 CACHE_TTL = 24 * 3600
 _cache_lock = threading.Lock()
 
 
 def _cache_load():
     try:
+        st = os.stat(CACHE_FILE)
+        if st.st_uid != os.getuid() or st.st_mode & 0o022:  # someone else could have written it
+            return {}
         with open(CACHE_FILE) as f:
             data = json.load(f)
     except (OSError, ValueError, TypeError):
@@ -456,7 +478,7 @@ def _remember_ok(key):
         tmp = "%s.%d.tmp" % (CACHE_FILE, os.getpid())
         try:
             os.makedirs(os.path.dirname(CACHE_FILE), exist_ok=True)
-            with open(tmp, "w") as f:
+            with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
                 json.dump(data, f)
             os.replace(tmp, CACHE_FILE)  # atomic: concurrent hooks never see a half-written file
         except OSError:
@@ -489,7 +511,7 @@ def check(eco, name):
     if age is not None and age < min_age:
         return "%s: first published %d days ago (< %d)." % (name, age, min_age)
     if dls is not None and eco in MIN_DOWNLOADS and dls < MIN_DOWNLOADS[eco]:
-        return "%s: only %d downloads (< %d)." % (name, dls, MIN_DOWNLOADS[eco])
+        return "%s: only %d %s (< %d)." % (name, dls, UNITS.get(eco, "downloads"), MIN_DOWNLOADS[eco])
     weak = (age is not None and age < 180) or (dls is not None and dls < 100 * MIN_DOWNLOADS.get(eco, 0))
     if twin and weak:
         return "%s: looks like a typosquat of popular package %r." % (name, twin)
@@ -683,13 +705,22 @@ def check_edit(tool, inp, cwd=None):
 def hook_output(payload):
     """Map a PreToolUse payload to the deny JSON (or None to allow)."""
     tool, inp = payload.get("tool_name"), payload.get("tool_input") or {}
+    cache_dir = os.path.dirname(CACHE_FILE or "") or None
     if tool in ("Write", "Edit", "MultiEdit"):
-        reasons, what = check_edit(tool, inp, payload.get("cwd")), "dependency edit"
+        target = os.path.realpath(os.path.join(payload.get("cwd") or ".", inp.get("file_path", "")))
+        if cache_dir and target.startswith(os.path.realpath(cache_dir) + os.sep):
+            reasons = ["%s is pkg-guard's cache; writing it would skip the checks." % target]
+        else:
+            reasons = check_edit(tool, inp, payload.get("cwd"))
+        what = "dependency edit"
     elif tool == "Bash":
         cmd = inp.get("command", "")
         if isinstance(cmd, list):  # Codex may send argv, e.g. ["bash", "-lc", "..."]
             cmd = " ".join(shlex.quote(str(a)) for a in cmd)
         reasons, what = check_command(cmd, payload.get("cwd")), "install"
+        # ponytail: substring match; a determined agent can still reach the file indirectly
+        if CACHE_FILE and os.path.basename(CACHE_FILE) in cmd:
+            reasons.append("the command touches pkg-guard's cache (%s)." % CACHE_FILE)
     else:
         return None
     if not reasons:

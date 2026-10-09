@@ -25,7 +25,7 @@ The agent sees the reason and fixes its own command.
 |---|---|
 | Doesn't exist | Registry returns 404. Suggests the popular name it resembles. |
 | Too new | First published less than 30 days ago (`PKG_GUARD_MIN_AGE_DAYS`) |
-| Too few users | npm: fewer than 100 weekly downloads. crates: fewer than 100 in 90 days. gems: fewer than 1,000 total. |
+| Too few users | npm: fewer than 100 weekly downloads. crates: fewer than 100 in 90 days. gems: fewer than 1,000 total. Go (GitHub/GitLab/Bitbucket): fewer than 10 repo stars, since Go publish times come from git commits and can be backdated. |
 | Typosquat | One edit away from a popular package, and young or little-used |
 
 It also catches the usual ways around a naive regex: `bash -lc "..."`, `$(...)`,
@@ -82,7 +82,7 @@ pkg-guard check "npm install some-lib"   # exit 1 if blocked
 | `PKG_GUARD_ALLOW=a,b` | Always allow these packages (internal or private names) |
 | `PKG_GUARD_MIN_AGE_DAYS=30` | Minimum package age |
 | `GOPRIVATE` / `GONOPROXY` | Go modules matching these globs are skipped, like `go` does (env vars only, not `go env -w`) |
-| `XDG_CACHE_HOME` | Packages that pass are cached for 24h in `$XDG_CACHE_HOME/pkg-guard/ok.json` (default `~/.cache`). Blocks are never cached. Delete the file to recheck everything. |
+| `XDG_CACHE_HOME` | Packages that pass are cached for 24h in `$XDG_CACHE_HOME/pkg-guard/pkg-guard-ok.json` (default `~/.cache`). Blocks are never cached. Delete the file to recheck everything. |
 | `PKG_GUARD_FAIL_CLOSED=1` | Block when the registry can't be reached. The default is to allow and warn, so offline work keeps going. |
 
 ## Limits
@@ -90,7 +90,7 @@ pkg-guard check "npm install some-lib"   # exit 1 if blocked
 pkg-guard is a heuristic guard, not a sandbox. It checks install commands and, in
 Claude Code, manifest edits. It does not check imports, and in Codex it does not see
 manifest edits made with `apply_patch`, and it does not see manifests changed by shell commands (`echo evil >> requirements.txt`). `pyproject.toml` and `Cargo.toml` edits are
-only checked on Python 3.11+ (needs `tomllib`). Go modules have no download counts, so only existence, age, and typosquats are checked. Packages from custom indexes are
+only checked on Python 3.11+ (needs `tomllib`). Go modules on vanity domains (`go.uber.org/...`) get no star signal, and their age can be backdated. The pass cache is a convenience, not a security boundary: the hook refuses agent writes to it, but a determined agent could still reach it indirectly. Packages from custom indexes are
 still checked against the public registry. Tarball and git URLs are not checked.
 
 ## Development
