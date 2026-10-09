@@ -68,6 +68,17 @@ class ParseTest(unittest.TestCase):
                              [("pypi", "evil"), ("pypi", "requests")])
             self.assertEqual(pg.parse("pip install --requirement=req.txt", cwd=d)[0], ("pypi", "evil"))
 
+    def test_nested_requirements(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            os.mkdir(os.path.join(d, "reqs"))
+            with open(os.path.join(d, "reqs", "base.txt"), "w") as f:
+                f.write("evil\n-r ../requirements.txt\n")  # cycle back to the top file
+            with open(os.path.join(d, "requirements.txt"), "w") as f:
+                f.write("-r reqs/base.txt\n--requirement=reqs/base.txt\nrequests\n")
+            self.assertEqual(pg.parse("pip install -r requirements.txt", cwd=d),
+                             [("pypi", "evil"), ("pypi", "requests")])
+
     def test_codex_argv_command(self):
         payload = {"tool_name": "Bash", "tool_input": {"command": ["bash", "-lc", "npm i evil"]}}
         with mock.patch.object(pg, "registry_info", return_value=None):
@@ -119,6 +130,54 @@ class CheckTest(unittest.TestCase):
             self.assertIsNone(pg.check("npm", "whatever-lib"))
             with mock.patch.dict("os.environ", {"PKG_GUARD_FAIL_CLOSED": "1"}):
                 self.assertIn("registry check failed", pg.check("npm", "whatever-lib"))
+
+
+class ManifestTest(unittest.TestCase):
+    def test_manifest_deps(self):
+        pkg = ('{"dependencies": {"lodash": "^4", "@types/node": "20", "alias": "npm:evil@1",'
+               ' "local": "file:../x", "gh": "user/repo", "ws": "workspace:*"}}')
+        self.assertEqual(pg.manifest_deps("a/package.json", pkg), ("npm", {"lodash", "@types/node", "evil"}))
+        self.assertEqual(pg.manifest_deps("requirements-dev.txt", "Evil_Pkg>=1  # x\n-e .\n"),
+                         ("pypi", {"evil-pkg"}))
+        gem = 'gem "rails", "~> 7"\ngem \'evil\'\ngem "mine", path: "../mine"\n'
+        self.assertEqual(pg.manifest_deps("Gemfile", gem), ("gems", {"rails", "evil"}))
+        self.assertIsNone(pg.manifest_deps("README.md", "evil"))
+
+    @unittest.skipIf(pg.tomllib is None, "TOML manifests need Python 3.11+")
+    def test_toml_manifests(self):
+        py = ('[project]\ndependencies = ["requests>=2", "evil"]\n'
+              '[project.optional-dependencies]\nx = ["extra-evil"]\n'
+              '[tool.poetry.dependencies]\npython = "^3.11"\nPoetry_Evil = "1"\nmine = {path = "."}\n')
+        self.assertEqual(pg.manifest_deps("pyproject.toml", py),
+                         ("pypi", {"requests", "evil", "extra-evil", "poetry-evil"}))
+        cargo = ('[dependencies]\nserde = "1"\nrenamed = { package = "evil", version = "1" }\n'
+                 'mine = { path = "../mine" }\n[target.\'cfg(unix)\'.dev-dependencies]\nunix-evil = "1"\n')
+        self.assertEqual(pg.manifest_deps("Cargo.toml", cargo), ("crates", {"serde", "evil", "unix-evil"}))
+
+    def test_edit_checks_only_added_deps(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "package.json")
+            with open(path, "w") as f:
+                f.write('{"dependencies": {"already-there": "1"}}')
+            calls = []
+            def fake_info(eco, name):
+                calls.append(name)
+                return None
+            edit = {"file_path": path, "old_string": '"already-there": "1"',
+                    "new_string": '"already-there": "1", "evil": "1"'}
+            with mock.patch.object(pg, "registry_info", side_effect=fake_info):
+                out = pg.hook_output({"tool_name": "Edit", "tool_input": edit})
+                self.assertIn("blocked this dependency edit", out["hookSpecificOutput"]["permissionDecisionReason"])
+                self.assertEqual(calls, ["evil"])
+                # edits that don't apply, non-manifests, and unchanged deps are allowed
+                self.assertIsNone(pg.hook_output({"tool_name": "Edit", "tool_input": dict(edit, old_string="nope")}))
+                self.assertIsNone(pg.hook_output({"tool_name": "Write", "tool_input":
+                                                  {"file_path": os.path.join(d, "x.js"), "content": "evil"}}))
+                multi = {"file_path": path, "edits": [{"old_string": "1", "new_string": "2"}]}
+                self.assertIsNone(pg.hook_output({"tool_name": "MultiEdit", "tool_input": multi}))
+                write = {"file_path": os.path.join(d, "new", "requirements.txt"), "content": "evil\n"}
+                self.assertIsNotNone(pg.hook_output({"tool_name": "Write", "tool_input": write}))
 
 
 class HookTest(unittest.TestCase):

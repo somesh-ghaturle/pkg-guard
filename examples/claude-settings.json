@@ -2,7 +2,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|Write|Edit|MultiEdit",
         "hooks": [
           { "type": "command", "command": "python3 /path/to/pkg_guard.py hook", "timeout": 20 }
         ]

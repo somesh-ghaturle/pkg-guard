@@ -30,7 +30,11 @@ The agent sees the reason and fixes its own command.
 
 It also catches the usual ways around a naive regex: `bash -lc "..."`, `$(...)`,
 `sudo`/`env` wrappers, `npm isntall`, `npm i x@npm:evil`, `npx -p evil`,
-`uvx --with evil`, and `pip install -r requirements.txt`.
+`uvx --with evil`, and `pip install -r requirements.txt` (nested `-r` included).
+
+In Claude Code it also checks file edits: dependencies the agent adds to
+`package.json`, `requirements*.txt`, `pyproject.toml`, `Cargo.toml`, or `Gemfile`
+are checked before the edit is written, so a later bare `npm install` can't sneak them in.
 
 ## Install
 
@@ -81,10 +85,11 @@ pkg-guard check "npm install some-lib"   # exit 1 if blocked
 
 ## Limits
 
-pkg-guard is a heuristic guard, not a sandbox. It only checks install commands.
-It does not check imports or a `package.json` the agent edits by hand, and it does
-not follow nested `-r` includes. Packages from custom indexes are still checked
-against the public registry. Tarball and git URLs are not checked.
+pkg-guard is a heuristic guard, not a sandbox. It checks install commands and, in
+Claude Code, manifest edits. It does not check imports, and in Codex it does not see
+manifest edits made with `apply_patch`. `pyproject.toml` and `Cargo.toml` edits are
+only checked on Python 3.11+ (needs `tomllib`). Packages from custom indexes are
+still checked against the public registry. Tarball and git URLs are not checked.
 
 ## Development
 

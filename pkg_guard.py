@@ -189,15 +189,35 @@ def _segments(command):
         yield seg
 
 
-def _requirements(path):
-    """Package specs from a requirements file (ponytail: nested -r not followed)."""
+def _read(path):
     try:
         with open(path) as f:
-            lines = f.read().splitlines()
-    except OSError:
+            return f.read()
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def _requirement_specs(text, base=None, _seen=None):
+    """Package specs from requirements-file text; follows `-r other.txt` relative to `base`."""
+    specs = []
+    for ln in text.splitlines():
+        s = ln.split(" #")[0].strip() if not ln.lstrip().startswith("#") else ""
+        m = re.match(r"^(?:-r|--requirement)[\s=]*(\S+)$", s)
+        if m and base is not None:
+            path = os.path.normpath(os.path.join(base, m.group(1)))
+            specs += _requirements(path, _seen)
+        elif s and not s.startswith("-"):
+            specs.append(s)
+    return specs
+
+
+def _requirements(path, _seen=None):
+    """Package specs from a requirements file, following nested -r includes."""
+    _seen = set() if _seen is None else _seen
+    if path in _seen or len(_seen) > 20:
         return []
-    specs = [ln.split("#")[0].strip() for ln in lines]
-    return [s for s in specs if s and not s.startswith("-")]
+    _seen.add(path)
+    return _requirement_specs(_read(path) or "", os.path.dirname(path), _seen)
 
 
 def parse(command, cwd=None, _depth=0):
@@ -375,17 +395,139 @@ def check_command(command, cwd=None):
         return [r for r in ex.map(lambda p: check(*p), pkgs) if r]
 
 
+try:
+    import tomllib
+except ImportError:  # ponytail: Python < 3.11 skips TOML manifests, vendor a parser if 3.9/3.10 matter
+    tomllib = None
+
+
+def _toml(text):
+    try:
+        return tomllib.loads(text) if tomllib else {}
+    except (ValueError, TypeError):
+        return {}
+
+
+def _npm_deps(text):
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return set()
+    out = set()
+    for section in ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies"):
+        deps = data.get(section) if isinstance(data, dict) else None
+        for k, v in (deps if isinstance(deps, dict) else {}).items():
+            v = str(v)
+            if v.startswith("npm:"):  # "alias": "npm:real-pkg@1"
+                k = v[4:]
+            elif re.match(r"^[a-z+]+:", v) or "/" in v:  # file:, link:, workspace:, git+..., urls, user/repo
+                continue
+            name = _clean("npm", k)
+            if name:
+                out.add(name)
+    return out
+
+
+def _pyproject_deps(data):
+    proj, poetry = data.get("project", {}), data.get("tool", {}).get("poetry", {})
+    specs = list(proj.get("dependencies", []))
+    for group in list(proj.get("optional-dependencies", {}).values()) + list(data.get("dependency-groups", {}).values()):
+        specs += [g for g in group if isinstance(g, str)]
+    tables = [poetry.get("dependencies", {}), poetry.get("dev-dependencies", {})]
+    tables += [g.get("dependencies", {}) for g in poetry.get("group", {}).values()]
+    for t in tables:
+        specs += [k for k, v in t.items()
+                  if k != "python" and not (isinstance(v, dict) and {"git", "path", "url"} & set(v))]
+    return specs
+
+
+def _cargo_deps(data):
+    out = set()
+    for t in [data] + list(data.get("target", {}).values()):
+        for section in ("dependencies", "dev-dependencies", "build-dependencies"):
+            for k, v in t.get(section, {}).items():
+                if isinstance(v, dict):
+                    if {"git", "path", "registry"} & set(v):
+                        continue
+                    k = v.get("package", k)
+                out.add(k)
+    return out
+
+
+def _gem_deps(text):
+    out = set()
+    for ln in text.splitlines():
+        m = re.match(r"""^\s*gem\s+["']([^"']+)["'](.*)""", ln)
+        if m and not re.search(r"\b(git|github|path):|:(git|github|path)\s*=>", m.group(2)):
+            out.add(m.group(1))
+    return out
+
+
+def manifest_deps(path, text):
+    """Return (ecosystem, {names}) declared in a dependency manifest, else None."""
+    base = os.path.basename(path)
+    if base == "package.json":
+        return "npm", _npm_deps(text)
+    if re.match(r"^requirements.*\.(txt|in)$", base):
+        specs = _requirement_specs(text)
+    elif base == "pyproject.toml":
+        specs = _pyproject_deps(_toml(text))
+    elif base == "Cargo.toml":
+        return "crates", _cargo_deps(_toml(text))
+    elif base == "Gemfile":
+        return "gems", _gem_deps(text)
+    else:
+        return None
+    return "pypi", {n for n in (_clean("pypi", s) for s in specs) if n}
+
+
+def _edited_text(tool, inp, old):
+    """File content after a Write/Edit/MultiEdit, or None if the edit can't apply."""
+    if tool == "Write":
+        return inp.get("content", "")
+    text = old or ""
+    for e in (inp.get("edits") if tool == "MultiEdit" else [inp]) or []:
+        o, n = e.get("old_string", ""), e.get("new_string", "")
+        if o not in text:
+            return None  # the edit itself will fail
+        text = text.replace(o, n) if e.get("replace_all") else text.replace(o, n, 1)
+    return text
+
+
+def check_edit(tool, inp, cwd=None):
+    """Return block reasons for dependencies a file edit adds to a manifest.
+
+    Without this, `npm i evil` is caught but writing "evil" into package.json and
+    running a bare `npm install` is not.
+    """
+    path = os.path.join(cwd or ".", inp.get("file_path", ""))
+    if manifest_deps(path, "") is None:
+        return []
+    old = _read(path) or ""
+    new = _edited_text(tool, inp, old)
+    if new is None:
+        return []
+    eco, after = manifest_deps(path, new)
+    added = sorted(after - manifest_deps(path, old)[1])
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        return [r for r in ex.map(lambda n: check(eco, n), added) if r]
+
+
 def hook_output(payload):
     """Map a PreToolUse payload to the deny JSON (or None to allow)."""
-    if payload.get("tool_name") != "Bash":
+    tool, inp = payload.get("tool_name"), payload.get("tool_input") or {}
+    if tool in ("Write", "Edit", "MultiEdit"):
+        reasons, what = check_edit(tool, inp, payload.get("cwd")), "dependency edit"
+    elif tool == "Bash":
+        cmd = inp.get("command", "")
+        if isinstance(cmd, list):  # Codex may send argv, e.g. ["bash", "-lc", "..."]
+            cmd = " ".join(shlex.quote(str(a)) for a in cmd)
+        reasons, what = check_command(cmd, payload.get("cwd")), "install"
+    else:
         return None
-    cmd = (payload.get("tool_input") or {}).get("command", "")
-    if isinstance(cmd, list):  # Codex may send argv, e.g. ["bash", "-lc", "..."]
-        cmd = " ".join(shlex.quote(str(a)) for a in cmd)
-    reasons = check_command(cmd, payload.get("cwd"))
     if not reasons:
         return None
-    msg = ("pkg-guard blocked this install:\n- " + "\n- ".join(reasons) +
+    msg = ("pkg-guard blocked this %s:\n- " % what + "\n- ".join(reasons) +
            "\nUse a well-known package or the stdlib. If the user confirms the package is "
            "legitimate, they can add it to PKG_GUARD_ALLOW.")
     return {"hookSpecificOutput": {"hookEventName": "PreToolUse",

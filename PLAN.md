@@ -30,7 +30,7 @@ have almost no users, or look like typosquats of popular packages.
 1. **Core** — command parser, registry checks, typosquat check, `pkg-guard check` CLI, offline tests. ✅
 2. **Hooks** — `pkg-guard hook`, Claude Code + Codex config snippets, end-to-end CLI tests. ✅
 3. **Skill + plugin** — `skills/pkg-guard/SKILL.md`, plugin + marketplace manifests. ✅
-4. **Ship** — README, CI (3.9 + 3.13), tag `v0.1.0`, repo public. ✅
+4. **Ship** — README, CI (3.9 + 3.13), tag `v0.1.0` ✅. Repo public: pending (owner flips it).
 
 ## v0.2 — close the remaining holes
 
@@ -40,8 +40,9 @@ Ordered by how much risk each one removes.
    `package.json` and running bare `npm install`. Hook `Edit|Write|MultiEdit` (Claude) /
    `apply_patch` (Codex) on `package.json`, `requirements*.txt`, `pyproject.toml`,
    `Cargo.toml`, `Gemfile`: diff old vs new dependency names, check only the added ones.
-   Update plugin hook matcher + example configs.
-2. **Nested `-r` / `-c` in requirements files** — follow includes (depth-capped, cycle-safe).
+   Update plugin hook matcher + example configs. ✅ (Claude Code; Codex `apply_patch`
+   pending — need its PreToolUse payload shape first. TOML manifests need Python 3.11+.)
+2. **Nested `-r` in requirements files** — follow includes (cycle-safe). ✅
 3. **Go modules** — `go get x`, `go install x@v`. Existence via `proxy.golang.org/<mod>/@v/list`,
    age via `@latest` `Time`. No download counts; typosquat vs a small popular list.
 4. **Result cache** — `~/.cache/pkg-guard/cache.json`, 24h TTL for "ok" results only
