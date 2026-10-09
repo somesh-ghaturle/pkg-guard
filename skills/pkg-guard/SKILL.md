@@ -1,6 +1,6 @@
 ---
 name: pkg-guard
-description: Use before adding, installing, or recommending any third-party package (npm, pip, uv, poetry, cargo, gem, npx, uvx), and whenever an install command was blocked by pkg-guard. Prevents installing hallucinated, brand-new, or typosquatted packages.
+description: Use before adding, installing, or recommending any third-party package (npm, pip, uv, poetry, cargo, gem, go, npx, uvx), and whenever an install command was blocked by pkg-guard. Prevents installing hallucinated, brand-new, or typosquatted packages.
 ---
 
 # Choosing dependencies safely

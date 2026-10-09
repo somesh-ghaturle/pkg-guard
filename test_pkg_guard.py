@@ -23,6 +23,11 @@ class ParseTest(unittest.TestCase):
             "uvx ruff check .": [("pypi", "ruff")],
             "cargo add serde --features derive tokio@1": [("crates", "serde"), ("crates", "tokio")],
             "gem install rails -v 7.1": [("gems", "rails")],
+            "go get -u github.com/gin-gonic/gin@v1.9.0 golang.org/x/net/...": [
+                ("go", "github.com/gin-gonic/gin"), ("go", "golang.org/x/net")],
+            "go install -tags x github.com/evil/tool@latest": [("go", "github.com/evil/tool")],
+            "go run github.com/evil/tool@v1 --flag arg.com": [("go", "github.com/evil/tool")],
+            "go mod download rsc.io/quote": [("go", "rsc.io/quote")],
         }
         for cmd, want in cases.items():
             self.assertEqual(pg.parse(cmd), want, cmd)
@@ -87,7 +92,9 @@ class ParseTest(unittest.TestCase):
     def test_ignored(self):
         for cmd in ["npm install", "npm run test", "pip install -e .", "pip install ./dist/x.whl",
                     "npm i github:user/repo", "npm i user/repo", "pip install git+https://x/y.git",
-                    "ls -la", "echo 'pip install foo'x", "cargo build"]:
+                    "ls -la", "echo 'pip install foo'x", "cargo build",
+                    "go get ./...", "go install .", "go run main.go", "go get github.com/x/y@none",
+                    "go build ./cmd/app", "go test ./..."]:
             self.assertEqual(pg.parse(cmd), [], cmd)
 
 
@@ -121,6 +128,29 @@ class CheckTest(unittest.TestCase):
     def test_normal_ok(self):
         self.assertIsNone(self.run_check("pypi", "tomli", {"age_days": 1500, "downloads": None}))
 
+    def test_go(self):
+        with mock.patch.object(pg, "registry_info", side_effect=AssertionError):
+            self.assertIsNone(pg.check("go", "golang.org/x/net/http2"))  # inside a popular module
+            with mock.patch.dict("os.environ", {"GOPRIVATE": "github.com/myorg/*,*.corp.example"}):
+                self.assertIsNone(pg.check("go", "github.com/myorg/svc/pkg"))
+                self.assertIsNone(pg.check("go", "git.corp.example/team/x"))
+        r = self.run_check("go", "github.com/gin-gonlc/gin", {"age_days": 20, "downloads": None})
+        self.assertIn("days ago", r)
+        r = self.run_check("go", "github.com/gin-gonlc/gin", {"age_days": 100, "downloads": None})
+        self.assertIn("typosquat of popular package 'github.com/gin-gonic/gin'", r)
+
+    def test_go_proxy_walks_up_to_module_root(self):
+        responses = {
+            "https://proxy.golang.org/github.com/!burnt!sushi/toml/sub/@latest": None,
+            "https://proxy.golang.org/github.com/!burnt!sushi/toml/@latest": '{"Time": "2024-01-01T00:00:00Z"}',
+            "https://proxy.golang.org/github.com/!burnt!sushi/toml/@v/list": "v1.10.0\nv0.2.0\nv1.2.0\n",
+            "https://proxy.golang.org/github.com/!burnt!sushi/toml/@v/v0.2.0.info": '{"Time": "2013-01-01T00:00:00Z"}',
+        }
+        with mock.patch.object(pg, "fetch", side_effect=lambda u: responses[u]):
+            self.assertGreater(pg.registry_info("go", "github.com/BurntSushi/toml/sub")["age_days"], 3000)
+        with mock.patch.object(pg, "fetch", return_value=None):
+            self.assertIsNone(pg.registry_info("go", "github.com/nope/nope/a/b"))
+
     def test_allowlist(self):
         with mock.patch.dict("os.environ", {"PKG_GUARD_ALLOW": "internal-thing"}):
             self.assertIsNone(self.run_check("npm", "internal-thing", None))
@@ -142,6 +172,12 @@ class ManifestTest(unittest.TestCase):
         gem = 'gem "rails", "~> 7"\ngem \'evil\'\ngem "mine", path: "../mine"\n'
         self.assertEqual(pg.manifest_deps("Gemfile", gem), ("gems", {"rails", "evil"}))
         self.assertIsNone(pg.manifest_deps("README.md", "evil"))
+        gomod = ("module example.com/me\n\ngo 1.22\n\nrequire github.com/a/one v1.0.0\n"
+                 "require (\n\tgithub.com/a/two v1.2.0 // indirect\n\t\"github.com/a/three\" v0.1.0\n)\n"
+                 "replace github.com/a/one => github.com/evil/one v1.0.0\n"
+                 "replace (\n\tgithub.com/a/two => ../local-two\n)\n")
+        self.assertEqual(pg.manifest_deps("go.mod", gomod), ("go", {
+            "github.com/a/one", "github.com/a/two", "github.com/a/three", "github.com/evil/one"}))
 
     def test_manifest_bypasses_are_caught(self):
         evil = {"evil"}
@@ -199,6 +235,10 @@ class ManifestTest(unittest.TestCase):
                 os.symlink(path, os.path.join(d, "notes.txt"))
                 self.assertIsNotNone(pg.hook_output({"tool_name": "Write", "tool_input": {
                     "file_path": os.path.join(d, "notes.txt"), "content": '{"dependencies": {"evil": "1"}}'}}))
+                # a manifest-named symlink to an innocent-named file
+                os.rename(path, os.path.join(d, "deps.json"))
+                os.symlink(os.path.join(d, "deps.json"), path)
+                self.assertIsNotNone(pg.hook_output({"tool_name": "Edit", "tool_input": edit}))
                 # a BOM is fine for npm, so it must not hide deps from us
                 self.assertIsNotNone(pg.hook_output({"tool_name": "Write", "tool_input": {
                     "file_path": path, "content": '﻿{"dependencies": {"evil": "1"}}'}}))
@@ -227,6 +267,19 @@ class HookTest(unittest.TestCase):
         p = subprocess.run([sys.executable, "pkg_guard.py", "hook"], input="not json",
                            capture_output=True, text=True)
         self.assertEqual((p.returncode, p.stdout), (0, ""))
+
+    def test_cli_hook_crash_denies(self):
+        payload = {"tool_name": "Write", "tool_input": {"file_path": 123}}  # join() raises TypeError
+        p = subprocess.run([sys.executable, "pkg_guard.py", "hook"], input=json.dumps(payload),
+                           capture_output=True, text=True)
+        self.assertIn('"deny"', p.stdout)
+
+    @unittest.skipIf(pg.tomllib is None, "TOML manifests need Python 3.11+")
+    def test_unexpected_toml_shape_denies(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            w = {"file_path": os.path.join(d, "pyproject.toml"), "content": 'project = "x"\n'}
+            self.assertIn("does not parse", pg.check_edit("Write", w)[0])
 
     def test_cli_hook_allows_non_install(self):
         p = subprocess.run([sys.executable, "pkg_guard.py", "hook"],

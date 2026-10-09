@@ -44,7 +44,8 @@ Ordered by how much risk each one removes.
    pending — need its PreToolUse payload shape first. TOML manifests need Python 3.11+.)
 2. **Nested `-r` in requirements files** — follow includes (cycle-safe). ✅
 3. **Go modules** — `go get x`, `go install x@v`. Existence via `proxy.golang.org/<mod>/@v/list`,
-   age via `@latest` `Time`. No download counts; typosquat vs a small popular list.
+   age via `@latest` `Time`. No download counts; typosquat vs a small popular list. ✅
+   (plus `go run mod@v`, `go mod download`, `go.mod` edits incl. `replace` targets, GOPRIVATE)
 4. **Result cache** — `~/.cache/pkg-guard/cache.json`, 24h TTL for "ok" results only
    (never cache blocks or failures, so a fixed name is rechecked). Cuts latency and rate limits.
 5. **Release v0.2.0** — README/SKILL updates, bump version in `pkg_guard.py`,

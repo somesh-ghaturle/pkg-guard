@@ -16,7 +16,7 @@ BLOCK lodahs: looks like a typosquat of popular package 'lodash'.
 The agent sees the reason and fixes its own command.
 
 - **Works with** Claude Code and Codex. Both use the same hook protocol, and one script covers both.
-- **Covers** npm, pnpm, yarn, bun, npx, pip, uv, uvx, poetry, pipx, cargo, and gem.
+- **Covers** npm, pnpm, yarn, bun, npx, pip, uv, uvx, poetry, pipx, cargo, gem, and go (`go get`, `go install`, `go run mod@v`).
 - **Single file, Python stdlib only.** The guard adds no dependencies of its own. Read it in five minutes.
 
 ## What gets blocked
@@ -33,7 +33,7 @@ It also catches the usual ways around a naive regex: `bash -lc "..."`, `$(...)`,
 `uvx --with evil`, and `pip install -r requirements.txt` (nested `-r` included).
 
 In Claude Code it also checks file edits: dependencies the agent adds to
-`package.json`, `requirements*.txt`, `pyproject.toml`, `Cargo.toml`, or `Gemfile`
+`package.json`, `requirements*.txt`, `pyproject.toml`, `Cargo.toml`, `Gemfile`, or `go.mod`
 are checked before the edit is written, so a later bare `npm install` can't sneak them in.
 
 ## Install
@@ -81,6 +81,7 @@ pkg-guard check "npm install some-lib"   # exit 1 if blocked
 |---|---|
 | `PKG_GUARD_ALLOW=a,b` | Always allow these packages (internal or private names) |
 | `PKG_GUARD_MIN_AGE_DAYS=30` | Minimum package age |
+| `GOPRIVATE` / `GONOPROXY` | Go modules matching these globs are skipped, like `go` does (env vars only, not `go env -w`) |
 | `PKG_GUARD_FAIL_CLOSED=1` | Block when the registry can't be reached. The default is to allow and warn, so offline work keeps going. |
 
 ## Limits
@@ -88,7 +89,7 @@ pkg-guard check "npm install some-lib"   # exit 1 if blocked
 pkg-guard is a heuristic guard, not a sandbox. It checks install commands and, in
 Claude Code, manifest edits. It does not check imports, and in Codex it does not see
 manifest edits made with `apply_patch`, and it does not see manifests changed by shell commands (`echo evil >> requirements.txt`). `pyproject.toml` and `Cargo.toml` edits are
-only checked on Python 3.11+ (needs `tomllib`). Packages from custom indexes are
+only checked on Python 3.11+ (needs `tomllib`). Go modules have no download counts, so only existence, age, and typosquats are checked. Packages from custom indexes are
 still checked against the public registry. Tarball and git URLs are not checked.
 
 ## Development

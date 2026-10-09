@@ -5,6 +5,7 @@ Usage:
   pkg_guard.py check "<shell command>"   exit 1 and print reasons if blocked
   pkg_guard.py hook                      PreToolUse hook (Claude Code, Codex): JSON on stdin
 """
+import fnmatch
 import json
 import os
 import re
@@ -52,6 +53,18 @@ POPULAR = {
         activesupport activerecord actionpack json pg mysql2 redis sinatra thor
         rubocop pry faraday httparty jwt bcrypt capybara factory_bot sprockets
         webpacker jbuilder bootsnap minitest""",
+    "go": """github.com/gin-gonic/gin github.com/spf13/cobra github.com/spf13/viper
+        github.com/stretchr/testify github.com/sirupsen/logrus go.uber.org/zap github.com/gorilla/mux
+        github.com/gorilla/websocket github.com/labstack/echo/v4 github.com/gofiber/fiber/v2
+        github.com/go-chi/chi/v5 github.com/google/uuid github.com/pkg/errors github.com/golang-jwt/jwt/v5
+        gorm.io/gorm github.com/jmoiron/sqlx github.com/lib/pq github.com/jackc/pgx/v5
+        github.com/go-sql-driver/mysql github.com/redis/go-redis/v9 github.com/aws/aws-sdk-go-v2
+        google.golang.org/grpc google.golang.org/protobuf golang.org/x/net golang.org/x/sync
+        golang.org/x/crypto golang.org/x/text golang.org/x/tools github.com/prometheus/client_golang
+        github.com/rs/zerolog github.com/urfave/cli/v2 gopkg.in/yaml.v3 github.com/joho/godotenv
+        github.com/mattn/go-sqlite3 github.com/go-playground/validator/v10
+        github.com/charmbracelet/bubbletea github.com/golang/protobuf github.com/google/go-cmp
+        github.com/mitchellh/mapstructure github.com/fsnotify/fsnotify k8s.io/client-go""",
 }
 POPULAR = {k: set(v.split()) for k, v in POPULAR.items()}
 
@@ -73,6 +86,8 @@ VALUE_FLAGS = {
     "crates": {"--version", "--vers", "-F", "--features", "--branch", "--tag", "--rev",
                "--registry", "--root", "--rename", "--target", "--profile", "-j", "--jobs"},
     "gems": {"-v", "--version", "-s", "--source", "-i", "--install-dir", "--platform"},
+    "go": {"-tags", "-modfile", "-o", "-C", "-mod", "-ldflags", "-gcflags", "-asmflags", "-pkgdir",
+           "-overlay", "-p", "-exec", "-toolexec", "-buildmode", "-compiler", "-installsuffix"},
 }
 # flags whose value IS a package (npx -p X, uvx --with X, uvx --from X)
 PKG_FLAGS = {"npm": {"-p", "--package"}, "pypi": {"--with", "--from"}}
@@ -82,7 +97,7 @@ NPM_INSTALL = {"install", "i", "in", "ins", "inst", "insta", "instal", "isnt", "
                "isntall", "add", "it", "install-test"}
 SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "fish"}
 INSTALLERS = {"npm", "pnpm", "yarn", "bun", "npx", "bunx", "uv", "uvx", "poetry", "pipx", "cargo",
-              "gem", "eval", "py"} | SHELLS
+              "gem", "go", "eval", "py"} | SHELLS
 PUNCT = "();<>|&`"
 
 
@@ -138,6 +153,12 @@ def _match(tokens):
         return "crates", t[2:], False
     if cmd == "gem" and sub == "install":
         return "gems", t[2:], False
+    if cmd == "go" and sub in ("get", "install"):
+        return "go", t[2:], False
+    if cmd == "go" and sub == "mod" and sub2 == "download":
+        return "go", t[3:], False
+    if cmd == "go" and sub == "run":  # `go run mod@v` fetches and runs a remote module
+        return "go", t[2:], True
     return None
 
 
@@ -149,6 +170,12 @@ def _clean(eco, arg):
         return None
     if re.search(r"\.(whl|tar\.gz|tgz|zip|gem)$", arg):
         return None
+    if eco == "go":
+        path, _, ver = arg.partition("@")
+        # no dot in the first element = stdlib or local (fmt, ./..., all); @none removes a dep
+        if ver == "none" or "." not in path.split("/")[0] or path.endswith(".go"):
+            return None
+        return re.sub(r"/\.\.\.$", "", path)
     if eco == "npm":
         if arg.startswith("@"):
             scope_name = arg[1:].split("@")[0]
@@ -282,16 +309,42 @@ def parse(command, cwd=None, _depth=0):
     return found
 
 
-def fetch_json(url):
-    """GET url as JSON; None on 404. Other errors raise."""
+def fetch(url):
+    """GET url as text; None on 404/410 (not found). Other errors raise."""
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
-            return json.load(r)
+            return r.read().decode()
     except urllib.error.HTTPError as e:
-        if e.code == 404:
+        if e.code in (404, 410):
             return None
         raise
+
+
+def fetch_json(url):
+    text = fetch(url)
+    return None if text is None else json.loads(text)
+
+
+def _go_info(path):
+    """Go module info via proxy.golang.org. `path` may be a package inside a module."""
+    esc = re.sub(r"[A-Z]", lambda m: "!" + m.group().lower(), path)  # proxy case-encoding
+    # ponytail: walk up at most 3 parents to find the module root; deeper package paths read as missing
+    for _ in range(4):
+        base = "https://proxy.golang.org/%s/@" % esc
+        latest = fetch_json(base + "latest")
+        if latest is not None:
+            break
+        if esc.count("/") < 2:
+            return None
+        esc = esc.rsplit("/", 1)[0]
+    else:
+        return None
+    tags = (fetch(base + "v/list") or "").split()
+    first = min(tags, key=lambda v: [int(x) for x in re.findall(r"\d+", v.split("-")[0])], default=None)
+    # ponytail: age of the lowest semver tag, not the first upload; republished old tags look old
+    info = fetch_json(base + "v/%s.info" % first) if first else latest
+    return {"age_days": _days_since((info or latest).get("Time")), "downloads": None}
 
 
 def _days_since(ts):
@@ -331,6 +384,8 @@ def registry_info(eco, name):
         versions = fetch_json("https://rubygems.org/api/v1/versions/%s.json" % q) or []
         first = min((v["created_at"] for v in versions if v.get("created_at")), default=None)
         return {"age_days": _days_since(first), "downloads": meta.get("downloads")}
+    if eco == "go":
+        return _go_info(name)
     raise ValueError(eco)
 
 
@@ -359,10 +414,19 @@ def lookalike(eco, name):
     return None
 
 
+def _go_private(path):
+    """True if GOPRIVATE/GONOPROXY globs cover `path` (matched per path-element prefix, like go)."""
+    pats = ",".join(os.environ.get(v, "") for v in ("GOPRIVATE", "GONOPROXY")).split(",")
+    elems = path.split("/")
+    return any(fnmatch.fnmatchcase("/".join(elems[:p.count("/") + 1]), p) for p in pats if p.strip())
+
+
 def check(eco, name):
     """Return a reason string if the package should be blocked, else None."""
     allow = {a.strip() for a in os.environ.get("PKG_GUARD_ALLOW", "").split(",") if a.strip()}
     if name in allow or name in POPULAR[eco]:
+        return None
+    if eco == "go" and (_go_private(name) or any(name.startswith(p + "/") for p in POPULAR["go"])):
         return None
     try:
         info = registry_info(eco, name)
@@ -474,6 +538,33 @@ def _gem_deps(text):
     return out
 
 
+def _gomod_deps(text):
+    """Modules from go.mod `require` lines and `replace ... => module version` targets."""
+    out, block = set(), None
+    for ln in text.splitlines():
+        ln = re.sub(r"//.*", "", ln).strip()
+        m = re.match(r"^(require|replace)\s*\($", ln)
+        if m:
+            block = m.group(1)
+            continue
+        if ln == ")":
+            block = None
+            continue
+        m = re.match(r"^(require|replace)\s+(.*)$", ln)
+        kind, rest = (m.group(1), m.group(2)) if m else (block, ln)
+        if kind == "require":
+            parts = rest.split()
+            name = _clean("go", parts[0].strip('"')) if parts else None
+        elif kind == "replace" and "=>" in rest:
+            parts = rest.split("=>", 1)[1].split()  # local-path targets have no version
+            name = _clean("go", parts[0].strip('"')) if len(parts) == 2 else None
+        else:
+            name = None
+        if name:
+            out.add(name)
+    return out
+
+
 def manifest_deps(path, text):
     """Return (ecosystem, {names}) declared in a dependency manifest, else None.
 
@@ -491,6 +582,8 @@ def manifest_deps(path, text):
         return "crates", _cargo_deps(_toml(text))
     elif base == "gemfile":
         return "gems", _gem_deps(text)
+    elif base == "go.mod":
+        return "go", _gomod_deps(text)
     else:
         return None
     return "pypi", {n for n in (_clean("pypi", s) for s in specs) if n}
@@ -515,9 +608,11 @@ def check_edit(tool, inp, cwd=None):
     Without this, `npm i evil` is caught but writing "evil" into package.json and
     running a bare `npm install` is not.
     """
-    path = os.path.realpath(os.path.join(cwd or ".", inp.get("file_path", "")))  # follow symlinks
-    if manifest_deps(path, "") is None:
-        return []
+    path = os.path.join(cwd or ".", inp.get("file_path", ""))
+    if manifest_deps(path, "") is None:  # also catch an innocent name symlinked to a manifest
+        path = os.path.realpath(path)
+        if manifest_deps(path, "") is None:
+            return []
     name = os.path.basename(path)
     old = _read(path) or ""
     new = _edited_text(tool, inp, old)
@@ -528,11 +623,11 @@ def check_edit(tool, inp, cwd=None):
                 "retry with its exact text." % name]
     try:
         eco, after = manifest_deps(path, new)
-    except ValueError as e:
+    except Exception as e:  # bad syntax, or valid syntax with unexpected shapes (`project = "x"`)
         return ["%s: does not parse (%s), so pkg-guard can't check its dependencies." % (name, e)]
     try:
         before = manifest_deps(path, old)[1]
-    except ValueError:
+    except Exception:
         before = set()  # broken before: check everything
     added = sorted(after - before)
     with ThreadPoolExecutor(max_workers=8) as ex:
@@ -568,7 +663,11 @@ def main(argv=None):
             payload = json.load(sys.stdin)
         except ValueError:
             return 0
-        out = hook_output(payload)
+        try:
+            out = hook_output(payload)
+        except Exception as e:  # a crashing hook lets the tool call through; deny instead
+            out = {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
+                                          "permissionDecisionReason": "pkg-guard internal error: %r" % e}}
         if out:
             print(json.dumps(out))
         return 0
