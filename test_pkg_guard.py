@@ -38,6 +38,12 @@ class ParseTest(unittest.TestCase):
             " -replace=github.com/x/z=../local": [("go", "github.com/evil/a"), ("go", "github.com/evil/b")],
             # ANSI-C quoting
             "bash -c $'npm i evil'": [("npm", "evil")],
+            "bash -c $'\\x6epm i evil'": [("npm", "evil")],
+            "echo '$'&&npm i evil": [("npm", "evil")],
+            "echo \"$'\"&&npm i evil": [("npm", "evil")],
+            "bash -c 'cd app\nnpm i evil'": [("npm", "evil")],
+            "np\\\nm i evil": [("npm", "evil")],
+            "echo 'a\nb' && npm i evil": [("npm", "evil")],
         }
         for cmd, want in cases.items():
             self.assertEqual(pg.parse(cmd), want, cmd)

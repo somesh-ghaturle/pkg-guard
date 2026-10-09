@@ -5,6 +5,7 @@ Usage:
   pkg_guard.py check "<shell command>"   exit 1 and print reasons if blocked
   pkg_guard.py hook                      PreToolUse hook (Claude Code, Codex): JSON on stdin
 """
+import codecs
 import fnmatch
 import json
 import os
@@ -199,33 +200,76 @@ def _clean(eco, arg):
     return arg.split("@")[0] or None
 
 
+def _normalize(command):
+    """Rewrite bash-only syntax shlex doesn't know, tracking quote state like bash does.
+
+    Unquoted newlines become `;`, backslash-newline continuations are joined, `$"..."`
+    becomes `"..."`, and `$'...'` is decoded (`$'\\x6epm'` is `npm`) and re-quoted.
+    """
+    out, i, q, n = [], 0, None, len(command)
+    while i < n:
+        c, nxt = command[i], command[i + 1:i + 2]
+        if q is None and c == "\\":
+            out.append("" if nxt == "\n" else command[i:i + 2])
+            i += 2
+            continue
+        if q is None and c == "$" and nxt == "'":
+            j, buf = i + 2, []
+            while j < n and command[j] != "'":
+                step = 2 if command[j] == "\\" else 1
+                buf.append(command[j:j + step])
+                j += step
+            raw = "".join(buf)
+            try:
+                val = codecs.decode(raw, "unicode_escape")
+            except (UnicodeError, ValueError):
+                val = raw
+            out.append(shlex.quote(val))
+            i = j + 1
+            continue
+        if q is None and c == "$" and nxt == '"':
+            i += 1
+            continue
+        if q is None and c == "\n":
+            c = ";"
+        elif q is None and c in "'\"":
+            q = c
+        elif q == c:
+            q = None
+        elif q == '"' and c == "\\":
+            out.append(command[i:i + 2])
+            i += 2
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
 def _segments(command):
     """Split a shell command into simple-command token lists, respecting quotes."""
-    # ponytail: $'..' escapes like \x6e aren't decoded, only the quoting is normalized
-    command = re.sub(r"\$(['\"])", r"\1", command)
-    for line in command.splitlines():
-        lex = shlex.shlex(line, posix=True, punctuation_chars=PUNCT)
-        lex.whitespace_split = True
-        lex.commenters = ""
-        try:
-            tokens = list(lex)
-        except ValueError:
-            tokens = line.split()
-        seg, skip = [], False
-        for tok in tokens:
-            if skip:
-                skip = False
-            elif tok and all(c in PUNCT for c in tok):
-                if "<" in tok or ">" in tok:  # redirect: drop fd number and target file
-                    if seg and seg[-1].isdigit():
-                        seg.pop()
-                    skip = True
-                    continue
-                yield seg
-                seg = []
-            else:
-                seg.append(tok)
-        yield seg
+    command = _normalize(command)
+    lex = shlex.shlex(command, posix=True, punctuation_chars=PUNCT)
+    lex.whitespace_split = True
+    lex.commenters = ""
+    try:
+        tokens = list(lex)
+    except ValueError:  # unbalanced quotes: bash won't run it either
+        tokens = command.replace(";", " ; ").split()
+    seg, skip = [], False
+    for tok in tokens:
+        if skip:
+            skip = False
+        elif tok and all(c in PUNCT for c in tok):
+            if "<" in tok or ">" in tok:  # redirect: drop fd number and target file
+                if seg and seg[-1].isdigit():
+                    seg.pop()
+                skip = True
+                continue
+            yield seg
+            seg = []
+        else:
+            seg.append(tok)
+    yield seg
 
 
 def _read(path):
