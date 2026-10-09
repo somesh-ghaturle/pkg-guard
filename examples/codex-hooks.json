@@ -1,0 +1,13 @@
+{
+  "description": "pkg-guard: block hallucinated / typosquatted package installs",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          { "type": "command", "command": "python3 /path/to/pkg_guard.py hook", "timeout": 20, "statusMessage": "pkg-guard: checking packages" }
+        ]
+      }
+    ]
+  }
+}

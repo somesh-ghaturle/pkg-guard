@@ -1,0 +1,9 @@
+{
+  "name": "pkg-guard",
+  "version": "0.1.0",
+  "description": "Blocks installs of hallucinated, brand-new, unpopular, or typosquatted packages (npm, PyPI, crates, gems)",
+  "author": { "name": "Somesh Ghaturle" },
+  "repository": "https://github.com/somesh-ghaturle/pkg-guard",
+  "license": "MIT",
+  "keywords": ["security", "supply-chain", "slopsquatting", "hooks"]
+}

@@ -1,0 +1,8 @@
+[[hooks.PreToolUse]]
+matcher = "Bash"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "python3 /path/to/pkg_guard.py hook"
+timeout = 20
+statusMessage = "pkg-guard: checking packages"
