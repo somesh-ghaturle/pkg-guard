@@ -32,7 +32,7 @@ have almost no users, or look like typosquats of popular packages.
 3. **Skill + plugin** — `skills/pkg-guard/SKILL.md`, plugin + marketplace manifests. ✅
 4. **Ship** — README, CI (3.9 + 3.13), tag `v0.1.0` ✅. Repo public ✅.
 
-## v0.2 — close the remaining holes
+## v0.2 — close the remaining holes (released 2026-10-09)
 
 Ordered by how much risk each one removes.
 
@@ -47,9 +47,9 @@ Ordered by how much risk each one removes.
    age via `@latest` `Time`. No download counts; typosquat vs a small popular list. ✅
    (plus `go run mod@v`, `go mod download`, `go.mod` edits incl. `replace` targets, GOPRIVATE)
 4. **Result cache** — `~/.cache/pkg-guard/cache.json`, 24h TTL for "ok" results only
-   (never cache blocks or failures, so a fixed name is rechecked). Cuts latency and rate limits.
+   (never cache blocks or failures, so a fixed name is rechecked). Cuts latency and rate limits. ✅
 5. **Release v0.2.0** — README/SKILL updates, bump version in `pkg_guard.py`,
-   `pyproject.toml`, `plugin.json`; tag.
+   `pyproject.toml`, `plugin.json`; tag. ✅
 
 ## v0.3 — better signals, more agents
 

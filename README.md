@@ -82,6 +82,7 @@ pkg-guard check "npm install some-lib"   # exit 1 if blocked
 | `PKG_GUARD_ALLOW=a,b` | Always allow these packages (internal or private names) |
 | `PKG_GUARD_MIN_AGE_DAYS=30` | Minimum package age |
 | `GOPRIVATE` / `GONOPROXY` | Go modules matching these globs are skipped, like `go` does (env vars only, not `go env -w`) |
+| `XDG_CACHE_HOME` | Packages that pass are cached for 24h in `$XDG_CACHE_HOME/pkg-guard/ok.json` (default `~/.cache`). Blocks are never cached. Delete the file to recheck everything. |
 | `PKG_GUARD_FAIL_CLOSED=1` | Block when the registry can't be reached. The default is to allow and warn, so offline work keeps going. |
 
 ## Limits

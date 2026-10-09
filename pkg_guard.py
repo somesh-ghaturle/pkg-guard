@@ -11,13 +11,15 @@ import os
 import re
 import shlex
 import sys
+import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 UA = "pkg-guard/%s (https://github.com/somesh-ghaturle/pkg-guard)" % __version__
 TIMEOUT = 4
 
@@ -421,12 +423,55 @@ def _go_private(path):
     return any(fnmatch.fnmatchcase("/".join(elems[:p.count("/") + 1]), p) for p in pats if p.strip())
 
 
+# Packages that passed every check, keyed "eco:name" -> unix time. Blocks and network
+# failures are never cached, so a corrected name or a recovered registry is rechecked.
+# ponytail: the agent can write this file too; pkg-guard is a guard against mistakes, not a sandbox
+CACHE_FILE = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"),
+                          "pkg-guard", "ok.json")
+CACHE_TTL = 24 * 3600
+_cache_lock = threading.Lock()
+
+
+def _cache_load():
+    try:
+        with open(CACHE_FILE) as f:
+            data = json.load(f)
+    except (OSError, ValueError, TypeError):
+        return {}
+    now = time.time()
+    return {k: t for k, t in data.items() if isinstance(t, (int, float)) and 0 <= now - t < CACHE_TTL} \
+        if isinstance(data, dict) else {}
+
+
+def _cached_ok(key):
+    return bool(CACHE_FILE) and key in _cache_load()
+
+
+def _remember_ok(key):
+    if not CACHE_FILE:
+        return
+    with _cache_lock:
+        data = _cache_load()
+        data[key] = time.time()
+        tmp = "%s.%d.tmp" % (CACHE_FILE, os.getpid())
+        try:
+            os.makedirs(os.path.dirname(CACHE_FILE), exist_ok=True)
+            with open(tmp, "w") as f:
+                json.dump(data, f)
+            os.replace(tmp, CACHE_FILE)  # atomic: concurrent hooks never see a half-written file
+        except OSError:
+            pass  # read-only home etc.: just don't cache
+
+
 def check(eco, name):
     """Return a reason string if the package should be blocked, else None."""
     allow = {a.strip() for a in os.environ.get("PKG_GUARD_ALLOW", "").split(",") if a.strip()}
     if name in allow or name in POPULAR[eco]:
         return None
     if eco == "go" and (_go_private(name) or any(name.startswith(p + "/") for p in POPULAR["go"])):
+        return None
+    key = "%s:%s" % (eco, name)
+    if _cached_ok(key):
         return None
     try:
         info = registry_info(eco, name)
@@ -448,6 +493,7 @@ def check(eco, name):
     weak = (age is not None and age < 180) or (dls is not None and dls < 100 * MIN_DOWNLOADS.get(eco, 0))
     if twin and weak:
         return "%s: looks like a typosquat of popular package %r." % (name, twin)
+    _remember_ok(key)
     return None
 
 

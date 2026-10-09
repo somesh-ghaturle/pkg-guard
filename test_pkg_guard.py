@@ -6,6 +6,8 @@ from unittest import mock
 
 import pkg_guard as pg
 
+pg.CACHE_FILE = None  # tests never touch the real ~/.cache; CacheTest opts back in
+
 OLD_POPULARISH = {"age_days": 2000, "downloads": 50000}
 
 
@@ -249,6 +251,29 @@ class ManifestTest(unittest.TestCase):
                 self.assertIsNone(pg.hook_output({"tool_name": "MultiEdit", "tool_input": multi}))
                 write = {"file_path": os.path.join(d, "new", "requirements.txt"), "content": "evil\n"}
                 self.assertIsNotNone(pg.hook_output({"tool_name": "Write", "tool_input": write}))
+
+
+class CacheTest(unittest.TestCase):
+    def test_caches_only_passes(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.object(pg, "CACHE_FILE", os.path.join(d, "sub", "ok.json")):
+            with mock.patch.object(pg, "registry_info", return_value=OLD_POPULARISH) as reg:
+                self.assertIsNone(pg.check("npm", "fine-lib"))
+                self.assertIsNone(pg.check("npm", "fine-lib"))
+                self.assertEqual(reg.call_count, 1)  # second call served from cache
+            with mock.patch.object(pg, "registry_info", return_value=None) as reg:
+                pg.check("npm", "missing-lib")
+                pg.check("npm", "missing-lib")
+                self.assertEqual(reg.call_count, 2)  # blocks are never cached
+            with mock.patch.object(pg, "registry_info", side_effect=OSError("offline")):
+                pg.check("npm", "offline-lib")
+            self.assertEqual(set(pg._cache_load()), {"npm:fine-lib"})  # nor network failures
+            with mock.patch.object(pg.time, "time", return_value=pg.time.time() + pg.CACHE_TTL + 1):
+                self.assertFalse(pg._cached_ok("npm:fine-lib"))  # expired
+            with open(pg.CACHE_FILE, "w") as f:
+                f.write("not json")
+            self.assertFalse(pg._cached_ok("npm:fine-lib"))  # corrupt file is ignored
 
 
 class HookTest(unittest.TestCase):
