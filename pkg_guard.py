@@ -55,18 +55,6 @@ POPULAR = {
 }
 POPULAR = {k: set(v.split()) for k, v in POPULAR.items()}
 
-# flags that consume the next token, per ecosystem
-VALUE_FLAGS = {
-    "npm": {"--registry", "-w", "--workspace", "--prefix", "--tag", "--cache"},
-    "pypi": {"-r", "--requirement", "-c", "--constraint", "-i", "--index-url", "--extra-index-url",
-             "-e", "--editable", "-t", "--target", "-f", "--find-links", "--python", "-p",
-             "--group", "--extra", "--source", "--with", "--from"},
-    "crates": {"--git", "--path", "--version", "--vers", "-F", "--features", "--branch",
-               "--tag", "--rev", "--registry", "-p", "--package", "--root", "--rename"},
-    "gems": {"-v", "--version", "-s", "--source", "-i", "--install-dir"},
-}
-
-
 def _env_int(name, default):
     try:
         return int(os.environ.get(name, default))
@@ -74,47 +62,89 @@ def _env_int(name, default):
         return default
 
 
+# flags whose next token is not a package, per ecosystem
+VALUE_FLAGS = {
+    "npm": {"--registry", "-w", "--workspace", "--prefix", "--tag", "--cache", "--omit", "--include",
+            "-c", "--call"},
+    "pypi": {"-c", "--constraint", "-i", "--index-url", "--extra-index-url", "-e", "--editable",
+             "-t", "--target", "-f", "--find-links", "--python", "-p", "--group", "--extra",
+             "--source", "--platform", "--python-version", "--implementation", "--abi",
+             "--no-binary", "--only-binary", "--root", "--prefix", "--src", "--upgrade-strategy"},
+    "crates": {"--version", "--vers", "-F", "--features", "--branch", "--tag", "--rev",
+               "--registry", "--root", "--rename", "--target", "--profile", "-j", "--jobs"},
+    "gems": {"-v", "--version", "-s", "--source", "-i", "--install-dir", "--platform"},
+}
+# flags whose value IS a package (npx -p X, uvx --with X, uvx --from X)
+PKG_FLAGS = {"npm": {"-p", "--package"}, "pypi": {"--with", "--from"}}
+# flags that point installs away from the public registry; registry checks don't apply
+OFF_REGISTRY = {"--git", "--path"}
+NPM_INSTALL = {"install", "i", "in", "ins", "inst", "insta", "instal", "isnt", "isnta", "isntal",
+               "isntall", "add", "it", "install-test"}
+SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "fish"}
+INSTALLERS = {"npm", "pnpm", "yarn", "bun", "npx", "bunx", "uv", "uvx", "poetry", "pipx", "cargo",
+              "gem", "eval", "py"} | SHELLS
+PUNCT = "();<>|&`"
+
+
+def _is_installer(tok):
+    b = os.path.basename(tok)
+    return b in INSTALLERS or re.match(r"^(pip|python)[0-9.]*$", b) is not None
+
+
 def _match(tokens):
-    """Return (ecosystem, args after the install verb) or None."""
-    t = tokens
-    while t and (t[0] == "sudo" or re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", t[0])):
-        t = t[1:]
-    if not t:
+    """Return (ecosystem, args, runner) for an install command, else None.
+
+    runner=True means only the first positional is a package (npx, uvx, ...).
+    """
+    # skip wrappers like `sudo -u x`, `env A=1`, `time`, `nohup`: jump to the first installer
+    i = next((k for k, tok in enumerate(tokens) if _is_installer(tok)), None)
+    if i is None:
         return None
+    t = tokens[i:]
     cmd = os.path.basename(t[0])
+    if re.match(r"^(python[0-9.]*|py)$", cmd):
+        if t[1:3] == ["-m", "pip"]:
+            t = t[2:]
+        elif t[1:2] == ["-mpip"]:
+            t = ["pip"] + t[2:]
+        else:
+            return None
+        cmd = "pip"
     sub = t[1] if len(t) > 1 else ""
-    if re.match(r"^python[0-9.]*$", cmd) and t[1:3] == ["-m", "pip"]:
-        cmd, t = "pip", t[2:]
-        sub = t[1] if len(t) > 1 else ""
-    if cmd in ("npm", "pnpm", "yarn", "bun") and sub in ("install", "i", "add"):
-        return "npm", t[2:]
-    if cmd in ("pnpm", "yarn") and sub == "dlx":
-        return "npm", t[2:3]
+    sub2 = t[2] if len(t) > 2 else ""
+    if cmd in ("npm", "pnpm", "yarn", "bun") and sub in NPM_INSTALL:
+        return "npm", t[2:], False
+    if cmd == "yarn" and sub == "global" and sub2 == "add":
+        return "npm", t[3:], False
+    if cmd in ("pnpm", "yarn") and sub == "dlx" or cmd in ("npm", "bun") and sub in ("exec", "x"):
+        return "npm", t[2:], True
     if cmd in ("npx", "bunx"):
-        args = [a for a in t[1:] if not a.startswith("-")]
-        return "npm", args[:1]
+        return "npm", t[1:], True
     if re.match(r"^pip[0-9.]*$", cmd) and sub == "install":
-        return "pypi", t[2:]
-    if cmd == "uv" and sub == "add":
-        return "pypi", t[2:]
-    if cmd == "uv" and sub in ("pip", "tool") and len(t) > 2 and t[2] in ("install", "run"):
-        return "pypi", t[3:] if t[2] == "install" else t[3:4]
-    if cmd == "poetry" and sub == "add":
-        return "pypi", t[2:]
-    if cmd == "pipx" and sub in ("install", "run"):
-        return "pypi", t[2:] if sub == "install" else t[2:3]
+        return "pypi", t[2:], False
+    if cmd == "uv" and sub == "add" or cmd == "poetry" and sub == "add":
+        return "pypi", t[2:], False
+    if cmd == "uv" and sub in ("pip", "tool") and sub2 == "install":
+        return "pypi", t[3:], False
+    if cmd == "uv" and sub == "tool" and sub2 == "run":
+        return "pypi", t[3:], True
+    if cmd == "pipx" and sub == "install":
+        return "pypi", t[2:], False
+    if cmd == "pipx" and sub == "run":
+        return "pypi", t[2:], True
     if cmd == "uvx":
-        args = [a for a in t[1:] if not a.startswith("-")]
-        return "pypi", args[:1]
+        return "pypi", t[1:], True
     if cmd == "cargo" and sub in ("add", "install"):
-        return "crates", t[2:]
+        return "crates", t[2:], False
     if cmd == "gem" and sub == "install":
-        return "gems", t[2:]
+        return "gems", t[2:], False
     return None
 
 
 def _clean(eco, arg):
     """Strip version specifiers; return None for paths, URLs, archives."""
+    if eco == "npm" and "@npm:" in arg:  # alias: `x@npm:real-pkg` installs real-pkg
+        arg = arg.split("@npm:", 1)[1]
     if "://" in arg or arg.startswith((".", "/", "~", "git+", "file:", "github:")):
         return None
     if re.search(r"\.(whl|tar\.gz|tgz|zip|gem)$", arg):
@@ -124,7 +154,7 @@ def _clean(eco, arg):
             scope_name = arg[1:].split("@")[0]
             return "@" + scope_name if "/" in scope_name else None
         if "/" in arg or ":" in arg:
-            return None  # github shorthand, npm: aliases
+            return None  # github shorthand
         return arg.split("@")[0] or None
     if eco == "pypi":
         name = re.split(r"[\[<>=!~;@ ]", arg)[0]
@@ -132,28 +162,102 @@ def _clean(eco, arg):
     return arg.split("@")[0] or None
 
 
-def parse(command):
+def _segments(command):
+    """Split a shell command into simple-command token lists, respecting quotes."""
+    for line in command.splitlines():
+        lex = shlex.shlex(line, posix=True, punctuation_chars=PUNCT)
+        lex.whitespace_split = True
+        lex.commenters = ""
+        try:
+            tokens = list(lex)
+        except ValueError:
+            tokens = line.split()
+        seg, skip = [], False
+        for tok in tokens:
+            if skip:
+                skip = False
+            elif tok and all(c in PUNCT for c in tok):
+                if "<" in tok or ">" in tok:  # redirect: drop fd number and target file
+                    if seg and seg[-1].isdigit():
+                        seg.pop()
+                    skip = True
+                    continue
+                yield seg
+                seg = []
+            else:
+                seg.append(tok)
+        yield seg
+
+
+def _requirements(path):
+    """Package specs from a requirements file (ponytail: nested -r not followed)."""
+    try:
+        with open(path) as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return []
+    specs = [ln.split("#")[0].strip() for ln in lines]
+    return [s for s in specs if s and not s.startswith("-")]
+
+
+def parse(command, cwd=None, _depth=0):
     """Return [(ecosystem, package)] for every install in a shell command."""
     found = []
-    for seg in re.split(r"&&|\|\||;|\||\n", command):
-        try:
-            tokens = shlex.split(seg)
-        except ValueError:
-            tokens = seg.split()
+
+    def add(eco, arg):
+        name = _clean(eco, arg)
+        if name and (eco, name) not in found:
+            found.append((eco, name))
+
+    for tokens in _segments(command):
+        if not tokens or _depth > 3:
+            continue
+        i = next((k for k, tok in enumerate(tokens) if _is_installer(tok)), None)
+        cmd = os.path.basename(tokens[i]) if i is not None else ""
+        if cmd in SHELLS:  # bash -c "...", bash -lc "..."
+            rest = tokens[i + 1:]
+            for k, a in enumerate(rest[:-1]):
+                if re.match(r"^-[a-z]*c[a-z]*$", a):
+                    found += [p for p in parse(rest[k + 1], cwd, _depth + 1) if p not in found]
+            continue
+        if cmd == "eval":
+            found += [p for p in parse(" ".join(tokens[i + 1:]), cwd, _depth + 1) if p not in found]
+            continue
         m = _match(tokens)
         if not m:
             continue
-        eco, args = m
-        skip = False
+        eco, args, runner = m
+        if eco == "crates" and any(a.split("=")[0] in OFF_REGISTRY for a in args):
+            continue
+        positional, from_flag, skip = [], False, None
         for a in args:
+            flag, _, inline = a.partition("=") if a.startswith("--") else (a, "", "")
             if skip:
-                skip = False
-            elif a in VALUE_FLAGS[eco]:
-                skip = True
+                if skip == "pkg":
+                    add(eco, a)
+                elif skip == "req":
+                    for spec in _requirements(os.path.join(cwd or ".", a)):
+                        add(eco, spec)
+                skip = None
+            elif flag in PKG_FLAGS.get(eco, ()):
+                from_flag = from_flag or flag == "--from" or eco == "npm"
+                add(eco, inline) if inline else None
+                skip = None if inline else "pkg"
+            elif eco == "pypi" and flag in ("-r", "--requirement"):
+                if inline:
+                    for spec in _requirements(os.path.join(cwd or ".", inline)):
+                        add(eco, spec)
+                else:
+                    skip = "req"
+            elif flag in VALUE_FLAGS[eco]:
+                skip = None if inline else "val"
             elif not a.startswith("-"):
-                name = _clean(eco, a)
-                if name and (eco, name) not in found:
-                    found.append((eco, name))
+                positional.append(a)
+        if runner:
+            # npx -p X cmd / uvx --from X cmd: the positional is a command, not a package
+            positional = [] if from_flag else positional[:1]
+        for a in positional:
+            add(eco, a)
     return found
 
 
@@ -262,9 +366,9 @@ def check(eco, name):
     return None
 
 
-def check_command(command):
+def check_command(command, cwd=None):
     """Return list of block reasons for a shell command."""
-    pkgs = parse(command)
+    pkgs = parse(command, cwd)
     if not pkgs:
         return []
     with ThreadPoolExecutor(max_workers=8) as ex:
@@ -276,9 +380,9 @@ def hook_output(payload):
     if payload.get("tool_name") != "Bash":
         return None
     cmd = (payload.get("tool_input") or {}).get("command", "")
-    if isinstance(cmd, list):
-        cmd = " ".join(cmd)
-    reasons = check_command(cmd)
+    if isinstance(cmd, list):  # Codex may send argv, e.g. ["bash", "-lc", "..."]
+        cmd = " ".join(shlex.quote(str(a)) for a in cmd)
+    reasons = check_command(cmd, payload.get("cwd"))
     if not reasons:
         return None
     msg = ("pkg-guard blocked this install:\n- " + "\n- ".join(reasons) +

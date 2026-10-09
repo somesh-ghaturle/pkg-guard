@@ -27,6 +27,52 @@ class ParseTest(unittest.TestCase):
         for cmd, want in cases.items():
             self.assertEqual(pg.parse(cmd), want, cmd)
 
+    def test_bypasses_are_caught(self):
+        evil = [("npm", "evil")]
+        cases = {
+            # parser differential: quotes, newlines, subshells, redirects
+            'echo "a;b" && npm i evil': evil,
+            "ls\nnpm i evil": evil,
+            "echo $(npm i evil)": evil,
+            "echo `npm i evil`": evil,
+            "npm i evil 2>&1 >/dev/null": evil,
+            "(cd x; npm i evil)": evil,
+            # command matching: wrappers, shells, eval, npm verb aliases
+            "sudo -u root npm i evil": evil,
+            "env A=1 time nohup npm i evil": evil,
+            "bash -c 'npm i evil'": evil,
+            "bash -lc \"cd app && npm i evil\"": evil,
+            "eval npm i evil": evil,
+            "npm isntall evil": evil,
+            "yarn global add evil": evil,
+            "npm exec evil": evil,
+            "/usr/local/bin/npm i evil": evil,
+            "python3 -mpip install evil": [("pypi", "evil")],
+            # flag handling: package-valued flags, aliases, --flag=value
+            "npx -p evil some-cmd": evil,
+            "npx --package=evil some-cmd": evil,
+            "npm i lodash@npm:evil": evil,
+            "uvx --with evil ruff": [("pypi", "evil"), ("pypi", "ruff")],
+            "uvx --from evil cmd": [("pypi", "evil")],
+            "pip install --index-url=https://x evil": [("pypi", "evil")],
+        }
+        for cmd, want in cases.items():
+            self.assertEqual(pg.parse(cmd), want, cmd)
+
+    def test_requirements_file_is_read(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "req.txt"), "w") as f:
+                f.write("# deps\nevil==1.0\n-e .\nrequests>=2  # http\n")
+            self.assertEqual(pg.parse("pip install -r req.txt", cwd=d),
+                             [("pypi", "evil"), ("pypi", "requests")])
+            self.assertEqual(pg.parse("pip install --requirement=req.txt", cwd=d)[0], ("pypi", "evil"))
+
+    def test_codex_argv_command(self):
+        payload = {"tool_name": "Bash", "tool_input": {"command": ["bash", "-lc", "npm i evil"]}}
+        with mock.patch.object(pg, "registry_info", return_value=None):
+            self.assertIsNotNone(pg.hook_output(payload))
+
     def test_ignored(self):
         for cmd in ["npm install", "npm run test", "pip install -e .", "pip install ./dist/x.whl",
                     "npm i github:user/repo", "npm i user/repo", "pip install git+https://x/y.git",
