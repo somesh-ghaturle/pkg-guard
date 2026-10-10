@@ -232,11 +232,17 @@ def _normalize(command):
     while i < n:
         c, nxt = command[i], command[i + 1:i + 2]
         if q is None and c == "<" and nxt == "<" and command[i + 2:i + 3] != "<" and command[i - 1:i] != "<":
-            m = re.match(r"<<(-?)[ \t]*([^\s;&|()<>]+)", command[i:])
+            # delimiter word as bash reads it: quoted parts may contain spaces ('E O F')
+            m = re.match(r"""<<(-?)[ \t]*((?:[^\s;&|()<>'"\\]|\\.|'[^']*'|"(?:[^"\\]|\\.)*")+)""", command[i:])
             if m:
                 raw = m.group(2)
-                words = re.split(r"[;&|(\n]", "".join(out))[-1].split()
-                pending.append((re.sub(r"[\"'\\]", "", raw), m.group(1) == "-", raw != re.sub(r"[\"'\\]", "", raw),
+                delim = re.sub(r"""'([^']*)'|"((?:[^"\\]|\\.)*)"|\\(.)""",
+                               lambda d: d.group(1) if d.group(1) is not None else
+                               re.sub(r"\\(.)", r"\1", d.group(2)) if d.group(2) is not None else d.group(3), raw)
+                # the shell may be before the << (bash <<EOF) or piped after it (cat <<EOF | sh)
+                after = command[i + m.end():].split("\n", 1)[0]
+                words = re.split(r"[;&|(\n]", "".join(out))[-1].split() + re.split(r"[\s;&|()<>]+", after)
+                pending.append((delim, m.group(1) == "-", raw != delim,
                                 any(os.path.basename(w) in SHELLS for w in words)))
                 out.append("<< ")  # redirect + target: _segments drops both
                 out.append(raw if re.match(r"^[\w.-]+$", raw) else "EOF")

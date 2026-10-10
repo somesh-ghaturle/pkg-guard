@@ -106,6 +106,12 @@ class ParseTest(unittest.TestCase):
             # a body fed to a shell runs; an unquoted body still runs substitutions
             "bash <<EOF\nnpm i evil\nEOF": [("npm", "evil")],
             "sudo sh -s <<'X'\ncd app && npm i evil\nX": [("npm", "evil")],
+            "cat <<'EOF' | sudo bash\nnpm i evil\nEOF": [("npm", "evil")],
+            "cat <<'EOF' > setup.sh\nnpm i evil\nEOF": [],  # only written; checked when run
+            # delimiters with quoted spaces/escapes end where bash ends them
+            "cat <<'E O F'\nx\nE O F\nnpm i evil\nE\n": [("npm", "evil")],
+            'cat <<"A B"\nx\nA B\nnpm i evil\nA\n': [("npm", "evil")],
+            "cat <<E\\ F\nx\nE F\nnpm i evil\nE\n": [("npm", "evil")],
             "cat <<EOF\nv=$(npm i evil)\nEOF": [("npm", "evil")],
             # docs written via heredoc are data
             "cat > README.md <<'EOF'\npip install my-unpublished-tool\nEOF": [],
