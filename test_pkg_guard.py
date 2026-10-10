@@ -52,6 +52,11 @@ class ParseTest(unittest.TestCase):
             # comments: a quote inside one must not hide later commands
             "# don't\nnpm i evil # it's": [("npm", "evil")],
             "ls # x' \nnpm i evil": [("npm", "evil")],
+            # `#` mid-word is not a comment, even after a continuation or escaped space
+            "echo x\\\n#; npm i evil": [("npm", "evil")],
+            "echo a\\ #; npm i evil": [("npm", "evil")],
+            "echo 'a'#; npm i evil": [("npm", "evil")],
+            "echo $'a'#; npm i evil": [("npm", "evil")],
             # substitutions inside double quotes still run
             'echo "$(npm i evil)"': [("npm", "evil")],
             'echo "x `npm i evil` y"': [("npm", "evil")],

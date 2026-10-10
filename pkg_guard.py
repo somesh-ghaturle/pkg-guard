@@ -227,9 +227,10 @@ def _normalize(command):
     backticks inside double quotes, which bash still runs, are appended as commands.
     """
     out, extra, i, q, n = [], [], 0, None, len(command)
+    word_start = True  # bash only starts a comment with `#` at the start of a word
     while i < n:
         c, nxt = command[i], command[i + 1:i + 2]
-        if q is None and c == "#" and (not out or out[-1] in " \t;&|()<>"):
+        if q is None and c == "#" and word_start:
             j = command.find("\n", i)
             i = n if j < 0 else j
             continue
@@ -249,10 +250,12 @@ def _normalize(command):
             # ponytail: quotes inside the substitution aren't tracked for paren matching
             extra.append(command[i + (1 if c == "`" else 2):j])
             out.append(command[i:j + 1])
-            i = j + 1
+            i, word_start = j + 1, False
             continue
         if q is None and c == "\\":
-            out.append("" if nxt == "\n" else command[i:i + 2])
+            if nxt != "\n":  # backslash-newline vanishes and leaves word_start as it was
+                out.append(command[i:i + 2])
+                word_start = False
             i += 2
             continue
         if q is None and c == "$" and nxt == "'":
@@ -262,7 +265,7 @@ def _normalize(command):
                 buf.append(command[j:j + step])
                 j += step
             out.append(shlex.quote(_ansi_c("".join(buf))))
-            i = j + 1
+            i, word_start = j + 1, False
             continue
         if q is None and c == "$" and nxt == '"':
             i += 1
@@ -276,9 +279,10 @@ def _normalize(command):
         elif q == '"' and c == "\\":
             # bash drops the backslash in "\$" and "\`"; shlex keeps it
             out.append(nxt if nxt in "$`" else command[i:i + 2])
-            i += 2
+            i, word_start = i + 2, False
             continue
         out.append(c)
+        word_start = q is None and c in " \t;&|()<>"
         i += 1
     return "".join(out) + "".join(";" + _normalize(e) for e in extra)
 
