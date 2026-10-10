@@ -49,6 +49,14 @@ class ParseTest(unittest.TestCase):
             "bash -c 'cd app\nnpm i evil'": [("npm", "evil")],
             "np\\\nm i evil": [("npm", "evil")],
             "echo 'a\nb' && npm i evil": [("npm", "evil")],
+            # comments: a quote inside one must not hide later commands
+            "# don't\nnpm i evil # it's": [("npm", "evil")],
+            "ls # x' \nnpm i evil": [("npm", "evil")],
+            # substitutions inside double quotes still run
+            'echo "$(npm i evil)"': [("npm", "evil")],
+            'echo "x `npm i evil` y"': [("npm", "evil")],
+            'echo "$(echo "$(npm i evil)")"': [("npm", "evil")],
+            'bash -c "echo \\"\\$(npm i evil)\\""': [("npm", "evil")],
         }
         for cmd, want in cases.items():
             self.assertEqual(pg.parse(cmd), want, cmd)
@@ -113,7 +121,8 @@ class ParseTest(unittest.TestCase):
     def test_ignored(self):
         for cmd in ["npm install", "npm run test", "pip install -e .", "pip install ./dist/x.whl",
                     "npm i github:user/repo", "npm i user/repo", "pip install git+https://x/y.git",
-                    "ls -la", "echo 'pip install foo'x", "cargo build",
+                    "ls -la", "echo 'pip install foo'x", "cargo build", "echo a#npm i evil",
+                    "# npm i evil", "echo '$(npm i evil)'", 'echo "\\$(npm i evil)"',
                     "go get ./...", "go install .", "go run main.go", "go get github.com/x/y@none",
                     "go build ./cmd/app", "go test ./..."]:
             self.assertEqual(pg.parse(cmd), [], cmd)

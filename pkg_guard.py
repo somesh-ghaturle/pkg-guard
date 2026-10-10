@@ -223,10 +223,34 @@ def _normalize(command):
 
     Unquoted newlines become `;`, backslash-newline continuations are joined, `$"..."`
     becomes `"..."`, and `$'...'` is decoded (`$'\\x6epm'` is `npm`) and re-quoted.
+    Comments are dropped (a `'` in `# don't` must not open a quote), and `$(...)` /
+    backticks inside double quotes, which bash still runs, are appended as commands.
     """
-    out, i, q, n = [], 0, None, len(command)
+    out, extra, i, q, n = [], [], 0, None, len(command)
     while i < n:
         c, nxt = command[i], command[i + 1:i + 2]
+        if q is None and c == "#" and (not out or out[-1] in " \t;&|()<>"):
+            j = command.find("\n", i)
+            i = n if j < 0 else j
+            continue
+        if q == '"' and (c == "`" or c == "$" and nxt == "("):
+            j, depth = (i + 1, 0) if c == "`" else (i + 2, 1)
+            while j < n:
+                if command[j] == "\\":
+                    j += 2
+                    continue
+                if c == "`" and command[j] == "`":
+                    break
+                if c == "$":
+                    depth += {"(": 1, ")": -1}.get(command[j], 0)
+                    if depth == 0:
+                        break
+                j += 1
+            # ponytail: quotes inside the substitution aren't tracked for paren matching
+            extra.append(command[i + (1 if c == "`" else 2):j])
+            out.append(command[i:j + 1])
+            i = j + 1
+            continue
         if q is None and c == "\\":
             out.append("" if nxt == "\n" else command[i:i + 2])
             i += 2
@@ -250,12 +274,13 @@ def _normalize(command):
         elif q == c:
             q = None
         elif q == '"' and c == "\\":
-            out.append(command[i:i + 2])
+            # bash drops the backslash in "\$" and "\`"; shlex keeps it
+            out.append(nxt if nxt in "$`" else command[i:i + 2])
             i += 2
             continue
         out.append(c)
         i += 1
-    return "".join(out)
+    return "".join(out) + "".join(";" + _normalize(e) for e in extra)
 
 
 def _segments(command):
