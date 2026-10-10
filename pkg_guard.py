@@ -225,11 +225,44 @@ def _normalize(command):
     becomes `"..."`, and `$'...'` is decoded (`$'\\x6epm'` is `npm`) and re-quoted.
     Comments are dropped (a `'` in `# don't` must not open a quote), and `$(...)` /
     backticks inside double quotes, which bash still runs, are appended as commands.
+    Heredoc bodies are data (quotes in them mean nothing), unless fed to a shell.
     """
-    out, extra, i, q, n = [], [], 0, None, len(command)
+    out, extra, pending, i, q, n = [], [], [], 0, None, len(command)
     word_start = True  # bash only starts a comment with `#` at the start of a word
     while i < n:
         c, nxt = command[i], command[i + 1:i + 2]
+        if q is None and c == "<" and nxt == "<" and command[i + 2:i + 3] != "<" and command[i - 1:i] != "<":
+            m = re.match(r"<<(-?)[ \t]*([^\s;&|()<>]+)", command[i:])
+            if m:
+                raw = m.group(2)
+                words = re.split(r"[;&|(\n]", "".join(out))[-1].split()
+                pending.append((re.sub(r"[\"'\\]", "", raw), m.group(1) == "-", raw != re.sub(r"[\"'\\]", "", raw),
+                                any(os.path.basename(w) in SHELLS for w in words)))
+                out.append("<< ")  # redirect + target: _segments drops both
+                out.append(raw if re.match(r"^[\w.-]+$", raw) else "EOF")
+                i, word_start = i + m.end(), False
+                continue
+        if q is None and c == "\n" and pending:
+            out.append(";")
+            i += 1
+            for delim, dash, quoted, shell in pending:
+                body, closed = [], False
+                while i < n:
+                    j = command.find("\n", i)
+                    j = n if j < 0 else j
+                    line, i = command[i:j], j + 1
+                    if (line.lstrip("\t") if dash else line) == delim:
+                        closed = True
+                        break
+                    body.append(line)
+                text = "\n".join(body)
+                if shell or not closed:  # `bash <<EOF` runs it; unterminated: not a real heredoc
+                    extra.append(text)
+                elif not quoted:  # <<EOF (unquoted) still runs $(...) and backticks in the body
+                    extra.append('"%s"' % text.replace('"', '\\"'))
+            pending, word_start = [], True
+            out.append(";")
+            continue
         if q is None and c == "#" and word_start:
             j = command.find("\n", i)
             i = n if j < 0 else j
@@ -242,12 +275,17 @@ def _normalize(command):
                     continue
                 if c == "`" and command[j] == "`":
                     break
+                if c == "$" and command[j] in "'\"":  # skip quoted text: ")" there doesn't close
+                    k = j + 1
+                    while k < n and command[k] != command[j]:
+                        k += 2 if command[j] == '"' and command[k] == "\\" else 1
+                    j = k + 1
+                    continue
                 if c == "$":
                     depth += {"(": 1, ")": -1}.get(command[j], 0)
                     if depth == 0:
                         break
                 j += 1
-            # ponytail: quotes inside the substitution aren't tracked for paren matching
             extra.append(command[i + (1 if c == "`" else 2):j])
             out.append(command[i:j + 1])
             i, word_start = j + 1, False

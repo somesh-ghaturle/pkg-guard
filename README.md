@@ -87,7 +87,14 @@ pkg-guard check "npm install some-lib"   # exit 1 if blocked
 
 ## Limits
 
-pkg-guard is a heuristic guard, not a sandbox. It checks install commands and, in
+pkg-guard catches agent **mistakes**: hallucinated names, typos, packages too new
+to trust. It is not a sandbox against an agent that is trying to get around it. A
+prompt-injected agent can still install through a variable (`P=npm; $P i x`), a script
+file, or `python -c "import subprocess..."`. The command parser follows bash's quoting,
+comments, heredocs and `$(...)` rules so ordinary commands can't hide an install by
+accident, but no static check can see every way a shell can run code.
+
+It is a heuristic guard, not a sandbox. It checks install commands and, in
 Claude Code, manifest edits. It does not check imports, and in Codex it does not see
 manifest edits made with `apply_patch`, and it does not see manifests changed by shell commands (`echo evil >> requirements.txt`). `pyproject.toml` and `Cargo.toml` edits are
 only checked on Python 3.11+ (needs `tomllib`). Go modules on vanity domains (`go.uber.org/...`) get no star signal, and their age can be backdated. The pass cache is a convenience, not a security boundary: the hook refuses agent writes to it, but a determined agent could still reach it indirectly. Packages from custom indexes are

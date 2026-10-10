@@ -98,6 +98,27 @@ class ParseTest(unittest.TestCase):
         for cmd, want in cases.items():
             self.assertEqual(pg.parse(cmd), want, cmd)
 
+    def test_heredocs(self):
+        cases = {
+            # quotes in a heredoc body are data and must not hide later commands
+            "cat <<EOF\ndon't\nEOF\nnpm i evil\necho it's": [("npm", "evil")],
+            "cat <<-'EOF' > f; npm i evil\n\tdon't\n\tEOF\necho it's": [("npm", "evil")],
+            # a body fed to a shell runs; an unquoted body still runs substitutions
+            "bash <<EOF\nnpm i evil\nEOF": [("npm", "evil")],
+            "sudo sh -s <<'X'\ncd app && npm i evil\nX": [("npm", "evil")],
+            "cat <<EOF\nv=$(npm i evil)\nEOF": [("npm", "evil")],
+            # docs written via heredoc are data
+            "cat > README.md <<'EOF'\npip install my-unpublished-tool\nEOF": [],
+            "cat > README.md <<EOF\nRun: pip install my-unpublished-tool\nEOF": [],
+            # here-strings and shifts are not heredocs
+            "echo $((1<<2))\nnpm i evil": [("npm", "evil")],
+            "cat <<<'x' && npm i evil": [("npm", "evil")],
+            # a quoted ")" inside $(...) doesn't close it
+            'echo "$(echo ")"; npm i evil)"': [("npm", "evil")],
+        }
+        for cmd, want in cases.items():
+            self.assertEqual(pg.parse(cmd), want, cmd)
+
     def test_requirements_file_is_read(self):
         import os, tempfile
         with tempfile.TemporaryDirectory() as d:
