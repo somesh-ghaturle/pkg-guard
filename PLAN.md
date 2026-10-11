@@ -51,7 +51,7 @@ Ordered by how much risk each one removes.
 5. **Release v0.2.0** — README/SKILL updates, bump version in `pkg_guard.py`,
    `pyproject.toml`, `plugin.json`; tag. ✅
 
-## v0.3 — better signals, more agents
+## v0.3 — better signals, more agents (released 2026-10-11)
 
 1. **Gemini CLI adapter** — `pkg-guard hook --format gemini` (BeforeTool event, its own
    deny JSON). Example `settings.json`. ✅ (auto-detected from
@@ -61,7 +61,7 @@ Ordered by how much risk each one removes.
 3. **Generated popular list** — script that pulls top-N names per registry into
    `popular.txt`-style data embedded in the file; improves typosquat recall. ✅
    (`scripts/gen_popular.py`: top 1000 npm/pypi/crates; gems and go have no ranking API)
-4. **Release v0.3.0.**
+4. **Release v0.3.0.** ✅ (2026-10-11)
 
 ## Maybe later (needs evidence it's worth it)
 
