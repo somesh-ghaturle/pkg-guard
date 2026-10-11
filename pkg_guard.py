@@ -798,7 +798,7 @@ def manifest_deps(path, text):
 def _edited_text(tool, inp, old):
     """File content after a Write/Edit/MultiEdit, or None if the edit can't apply."""
     if tool == "Write":
-        return inp.get("content", "")
+        return inp.get("content", "")  # None: an apply_patch that won't apply
     text = old or ""
     for e in (inp.get("edits") if tool == "MultiEdit" else [inp]) or []:
         o, n = e.get("old_string", ""), e.get("new_string", "")
@@ -840,52 +840,119 @@ def check_edit(tool, inp, cwd=None):
         return [r for r in ex.map(lambda n: check(eco, n), added) if r]
 
 
-def _patch_edits(patch, cwd=None):
-    """[(tool, tool_input)] Write/MultiEdit calls equivalent to a Codex apply_patch patch."""
-    files, cur = [], None
-    for ln in patch.splitlines():
-        m = re.match(r"^\*\*\* (Add|Update|Delete) File: (.+)$", ln)
-        if m:
-            cur = {"op": m.group(1), "path": m.group(2).strip(), "move": None, "add": [], "hunks": []}
-            files.append(cur)
-        elif cur is None or ln.startswith(("*** End Patch", "*** End of File")):
+_UNI = str.maketrans({**dict.fromkeys("‐‑‒–—―−", "-"),
+                      **dict.fromkeys("‘’‚‛", "'"),
+                      **dict.fromkeys("“”„‟", '"'),
+                      **dict.fromkeys("          "
+                                      "  　", " ")})
+
+
+def _seek(lines, pattern, start, eof=False):
+    """Codex's seek_sequence: first match from `start`, exact, then ever looser."""
+    if not pattern:
+        return start
+    if len(pattern) > len(lines):
+        return None
+    start = max(start, len(lines) - len(pattern)) if eof else start
+    for norm in (lambda s: s, str.rstrip, str.strip, lambda s: s.strip().translate(_UNI)):
+        for i in range(start, len(lines) - len(pattern) + 1):
+            if all(norm(a) == norm(b) for a, b in zip(lines[i:i + len(pattern)], pattern)):
+                return i
+    return None
+
+
+def _apply_chunks(text, chunks):
+    """New file text after Codex applies update `chunks`, or None if it would fail."""
+    lines = re.split(r"\r\n|\r|\n", text)
+    if lines[-1] == "":
+        lines.pop()  # the final newline ends the last line; it isn't a line of its own
+    reps, at = [], 0
+    for c in chunks:
+        if c["ctx"] is not None:
+            i = _seek(lines, [c["ctx"]], at)
+            if i is None:
+                return None
+            at = i + 1
+        old, new, keep = c["old"], c["new"], c["keep"]
+        if not old:  # pure insertion: Codex appends it at the end of the file
+            reps.append((len(lines), 0, new))
             continue
-        elif ln.startswith("*** Move to: "):
-            cur["move"] = ln[13:].strip()
-        elif cur["op"] == "Add":
-            if ln.startswith("+"):
-                cur["add"].append(ln[1:])
-        elif cur["op"] == "Update":
-            if ln.startswith("@@"):  # `@@ [dependencies]` names a line the hunk sits under
-                if not cur["hunks"] or cur["hunks"][-1][1] or cur["hunks"][-1][2]:
-                    cur["hunks"].append(["", [], []])
-                cur["hunks"][-1][0] = ln[2:].strip() or cur["hunks"][-1][0]
-                continue
-            if not cur["hunks"]:
-                cur["hunks"].append(["", [], []])
-            header, old, new = cur["hunks"][-1]
-            tag, body = ln[:1] or " ", ln[1:]
-            if tag in " -":
-                old.append(body)
-            if tag in " +":
-                new.append(body)
-    out = []
+        i = _seek(lines, old, at, c["eof"])
+        if i is None and old[-1] == "":
+            old, new = old[:-1], new[:-1] if new and new[-1] == "" else new
+            keep = [(o, n) for o, n in keep if o < len(old) and n < len(new)]
+            i = _seek(lines, old, at, c["eof"])
+        if i is None:
+            return None
+        # context lines keep the file's own text (fuzzy matches may differ in whitespace/quotes)
+        o0 = n0 = 0
+        for o, n in keep + [(len(old), len(new))]:
+            if (o, n) != (o0, n0) or o == len(old):
+                reps.append((i + o0, o - o0, new[n0:n]))
+            o0, n0 = o + 1, n + 1
+        at = i + len(old)
+    for start, length, repl in sorted(reps, key=lambda r: r[0], reverse=True):
+        lines[start:start + length] = repl
+    return "\n".join(lines) + "\n"
+
+
+def _patch_edits(patch, cwd=None):
+    """[(tool, tool_input)] Write calls equivalent to a Codex apply_patch patch.
+
+    Mirrors codex-rs/apply-patch (parser + seek_sequence) so the patch can't put a
+    dependency anywhere other than where we look. Content None = Codex would reject it.
+    """
+    files, cur, mode = [], None, "start"
+    for ln in patch.strip().split("\n"):
+        ln = ln[:-1] if ln.endswith("\r") else ln
+        head = ln.rstrip() if mode == "update" else ln.strip()  # Codex trims less inside updates
+        m = re.match(r"^\*\*\* (Add|Delete|Update) File: (.*)$", head)
+        if mode == "start" and head == "*** Begin Patch":
+            mode = "files"
+        elif head == "*** End Patch" and mode != "start":
+            mode = "end"
+        elif m and mode not in ("start", "end"):
+            cur = {"op": m.group(1), "path": m.group(2), "move": None, "add": [], "chunks": []}
+            files.append(cur)
+            mode = {"Add": "add", "Delete": "files", "Update": "update"}[m.group(1)]
+        elif mode == "add" and ln.startswith("+"):
+            cur["add"].append(ln[1:])
+        elif mode == "update":
+            chunks = cur["chunks"]
+            if head.startswith("*** Move to: ") and not chunks and cur["move"] is None:
+                cur["move"] = head[13:]
+            elif head == "@@" or head.startswith("@@ "):
+                chunks.append({"ctx": head[3:] if head != "@@" else None, "old": [], "new": [],
+                               "keep": [], "eof": False})
+            elif head == "*** End of File" and chunks:
+                chunks[-1]["eof"] = True
+            elif ln[:1] in ("", " ", "+", "-"):
+                if not chunks:
+                    chunks.append({"ctx": None, "old": [], "new": [], "keep": [], "eof": False})
+                c, tag, body = chunks[-1], ln[:1] or " ", ln[1:]
+                if tag == " ":
+                    c["keep"].append((len(c["old"]), len(c["new"])))
+                if tag in " -":
+                    c["old"].append(body)
+                if tag in " +":
+                    c["new"].append(body)
+    out, state = [], {}  # later hunks see earlier ones' results, as when Codex applies them in order
+
+    def resolve(p):
+        return os.path.normpath(os.path.join(cwd or ".", p))
     for f in files:
+        src = resolve(f["path"])
+        if f["op"] == "Delete":
+            state[src] = ""
+            continue
         if f["op"] == "Add":
-            out.append(("Write", {"file_path": f["path"], "content": "\n".join(f["add"]) + "\n"}))
-        elif f["op"] == "Update":
-            edits = []
-            for header, old, new in f["hunks"]:
-                o, n = "\n".join(old), "\n".join(new)
-                if not o and header:  # pure insertion: anchor it under the @@ line
-                    o, n = header, header + "\n" + n
-                edits.append({"old_string": o, "new_string": n})
-            if f["move"]:  # the moved file's new content lands at the destination
-                text = _edited_text("MultiEdit", {"edits": edits}, _read(os.path.join(cwd or ".", f["path"])))
-                out.append(("Write", {"file_path": f["move"], "content": text}) if text is not None
-                           else ("MultiEdit", {"file_path": f["move"], "edits": edits}))
-            else:
-                out.append(("MultiEdit", {"file_path": f["path"], "edits": edits}))
+            text = "".join(a + "\n" for a in f["add"])
+        else:
+            old = state[src] if src in state else _read(src)
+            text = None if old is None else _apply_chunks(old, f["chunks"])
+        dest = resolve(f["move"]) if f.get("move") else src
+        state[dest] = text or ""
+        out.append(("Write", {"file_path": dest, "content": text}))
     return out
 
 

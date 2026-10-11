@@ -420,12 +420,22 @@ class HookTest(unittest.TestCase):
                       '-    "lodash": "^4"\n+    "lodash": "^4",\n+    "evil": "1"\n   }\n*** End Patch')
             self.assertIn("evil", blocked(update))
             self.assertIn("evil", blocked("apply_patch <<'EOF'\n" + update + "\nEOF", tool="Bash"))
-            insert = ('*** Begin Patch\n*** Update File: package.json\n@@   "dependencies": {\n'
-                      '+    "evil": "1",\n*** End Patch')
-            self.assertIn("evil", blocked(insert))
+            # Codex appends a hunk with no old lines at the end of the file
+            insert = '*** Begin Patch\n*** Update File: package.json\n@@   "dependencies": {\n+  "x": 1\n*** End Patch'
+            self.assertIn("does not parse", blocked(insert))
+            # leading whitespace before a file header still counts outside an update hunk
+            self.assertIn("evil-pkg", blocked('*** Begin Patch\n  *** Add File: requirements.txt\n+evil-pkg\n*** End Patch'))
+            # `@@ ctx` picks which of two identical lines is edited
+            with open(os.path.join(d, "package.json"), "w") as f:
+                f.write('{\n  "config": {\n    "x": "1"\n  },\n  "dependencies": {\n    "x": "1"  \n  }\n}\n')
+            seek = ('*** Begin Patch\n*** Update File: package.json\n@@   "dependencies": {\n-    "x": "1"\n'
+                    '+    "evil": "1"\n*** End Patch')  # also: matches despite the file's trailing spaces
+            self.assertIn("evil", blocked(seek))
+            with open(os.path.join(d, "package.json"), "w") as f:
+                f.write('{\n  "dependencies": {\n    "lodash": "^4"\n  }\n}\n')
             add = '*** Begin Patch\n*** Add File: sub/requirements.txt\n+evil-pkg==1\n*** End Patch'
             self.assertIn("evil-pkg", blocked(add))
-            move = '*** Begin Patch\n*** Update File: old.json\n*** Move to: package.json\n@@\n {"dependencies"\n*** End Patch'
+            move = '*** Begin Patch\n*** Update File: old.json\n*** Move to: package.json\n@@\n {"dependencies": {"evil": "1"}}\n*** End Patch'
             self.assertIn("evil", blocked(move))
             self.assertIn("could not apply", blocked(update.replace("lodash", "nope")))
             harmless = ('*** Begin Patch\n*** Update File: package.json\n@@\n-    "lodash": "^4"\n'

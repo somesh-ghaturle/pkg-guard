@@ -105,7 +105,7 @@ accident, but no static check can see every way a shell can run code.
 
 It is a heuristic guard, not a sandbox. It checks install commands and manifest edits made through the agent's edit tools. It does not check imports, and it does not see manifests changed by shell commands (`echo evil >> requirements.txt`). `pyproject.toml` and `Cargo.toml` edits are
 only checked on Python 3.11+ (needs `tomllib`). Go modules on vanity domains (`go.uber.org/...`) get no star signal, and their age can be backdated. The pass cache is a convenience, not a security boundary: the hook refuses agent writes to it, but a determined agent could still reach it indirectly. Packages from custom indexes are
-still checked against the public registry. Tarball and git URLs are not checked. Codex `apply_patch` hunks must match the file exactly; one that only matches after Codex's whitespace-tolerant matching is denied, and the agent is asked to retry with the exact text.
+still checked against the public registry. Tarball and git URLs are not checked. Codex `apply_patch` patches are applied with a port of Codex's own matching rules; a patch Codex would reject is denied.
 
 ## Development
 
