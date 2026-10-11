@@ -3,7 +3,8 @@
 
 Usage:
   pkg_guard.py check "<shell command>"   exit 1 and print reasons if blocked
-  pkg_guard.py hook                      PreToolUse hook (Claude Code, Codex): JSON on stdin
+  pkg_guard.py hook                      PreToolUse (Claude Code, Codex) / BeforeTool (Gemini CLI)
+                                         hook: JSON on stdin
 """
 import fnmatch
 import json
@@ -512,8 +513,11 @@ def registry_info(eco, name):
         if meta is None:
             return None
         dl = fetch_json("https://api.npmjs.org/downloads/point/last-week/" + name) or {}
+        latest = meta.get("versions", {}).get(meta.get("dist-tags", {}).get("latest"), {})
+        scripts = set(latest.get("scripts") or {}) | ({"install"} if latest.get("gypfile") else set())
         return {"age_days": _days_since(meta.get("time", {}).get("created")),
-                "downloads": dl.get("downloads")}
+                "downloads": dl.get("downloads"),
+                "install_scripts": sorted(INSTALL_HOOKS & scripts)}
     if eco == "pypi":
         meta = fetch_json("https://pypi.org/pypi/%s/json" % q)
         if meta is None:
@@ -539,6 +543,7 @@ def registry_info(eco, name):
     raise ValueError(eco)
 
 
+INSTALL_HOOKS = {"preinstall", "install", "postinstall"}  # npm runs these on `npm install`
 MIN_DOWNLOADS = {"npm": 100, "crates": 100, "gems": 1000, "go": 10}  # weekly / 90-day / total / repo stars
 UNITS = {"go": "repo stars"}
 
@@ -645,6 +650,9 @@ def check(eco, name):
     weak = (age is not None and age < 180) or (dls is not None and dls < 100 * MIN_DOWNLOADS.get(eco, 0))
     if twin and weak:
         return "%s: looks like a typosquat of popular package %r." % (name, twin)
+    if weak and info.get("install_scripts"):
+        return "%s: runs %s on install and is young or little-used (%s days old, %s weekly downloads)." % (
+            name, "/".join(info["install_scripts"]), age, dls)
     _remember_ok(key)
     return None
 
@@ -832,22 +840,41 @@ def check_edit(tool, inp, cwd=None):
         return [r for r in ex.map(lambda n: check(eco, n), added) if r]
 
 
+# Gemini CLI tool names -> the Claude Code tool with the same arguments
+GEMINI_TOOLS = {"run_shell_command": "Bash", "write_file": "Write", "replace": "Edit"}
+
+
+def _deny(msg, payload):
+    """Deny JSON in the dialect of whichever agent sent `payload`."""
+    if payload.get("hook_event_name") == "BeforeTool":  # Gemini CLI
+        return {"decision": "deny", "reason": msg}
+    return {"hookSpecificOutput": {"hookEventName": "PreToolUse",
+                                   "permissionDecision": "deny",
+                                   "permissionDecisionReason": msg}}
+
+
 def hook_output(payload):
-    """Map a PreToolUse payload to the deny JSON (or None to allow)."""
-    tool, inp = payload.get("tool_name"), payload.get("tool_input") or {}
+    """Map a PreToolUse / BeforeTool payload to the deny JSON (or None to allow)."""
+    tool, inp, cwd = payload.get("tool_name"), payload.get("tool_input") or {}, payload.get("cwd")
+    if payload.get("hook_event_name") == "BeforeTool":
+        tool = GEMINI_TOOLS.get(tool)
+        if inp.get("dir_path"):
+            cwd = os.path.join(cwd or ".", inp["dir_path"])
+        if inp.get("allow_multiple"):
+            inp = dict(inp, replace_all=True)
     cache_dir = os.path.dirname(CACHE_FILE or "") or None
     if tool in ("Write", "Edit", "MultiEdit"):
-        target = os.path.realpath(os.path.join(payload.get("cwd") or ".", inp.get("file_path", "")))
+        target = os.path.realpath(os.path.join(cwd or ".", inp.get("file_path", "")))
         if cache_dir and target.startswith(os.path.realpath(cache_dir) + os.sep):
             reasons = ["%s is pkg-guard's cache; writing it would skip the checks." % target]
         else:
-            reasons = check_edit(tool, inp, payload.get("cwd"))
+            reasons = check_edit(tool, inp, cwd)
         what = "dependency edit"
     elif tool == "Bash":
         cmd = inp.get("command", "")
         if isinstance(cmd, list):  # Codex may send argv, e.g. ["bash", "-lc", "..."]
             cmd = " ".join(shlex.quote(str(a)) for a in cmd)
-        reasons, what = check_command(cmd, payload.get("cwd")), "install"
+        reasons, what = check_command(cmd, cwd), "install"
         # ponytail: substring match; a determined agent can still reach the file indirectly
         if CACHE_FILE and os.path.basename(CACHE_FILE) in cmd:
             reasons.append("the command touches pkg-guard's cache (%s)." % CACHE_FILE)
@@ -858,9 +885,7 @@ def hook_output(payload):
     msg = ("pkg-guard blocked this %s:\n- " % what + "\n- ".join(reasons) +
            "\nUse a well-known package or the stdlib. If the user confirms the package is "
            "legitimate, they can add it to PKG_GUARD_ALLOW.")
-    return {"hookSpecificOutput": {"hookEventName": "PreToolUse",
-                                   "permissionDecision": "deny",
-                                   "permissionDecisionReason": msg}}
+    return _deny(msg, payload)
 
 
 def main(argv=None):
@@ -873,8 +898,7 @@ def main(argv=None):
         try:
             out = hook_output(payload)
         except Exception as e:  # a crashing hook lets the tool call through; deny instead
-            out = {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
-                                          "permissionDecisionReason": "pkg-guard internal error: %r" % e}}
+            out = _deny("pkg-guard internal error: %r" % e, payload if isinstance(payload, dict) else {})
         if out:
             print(json.dumps(out))
         return 0

@@ -33,6 +33,8 @@ python3 /path/to/pkg_guard.py check "npm install some-lib"   # exit 1 = blocked,
   given, otherwise find the real package. Do not retry with variations.
 - **"first published N days ago" / "only N downloads"** — tell the user which
   package and why; pick an established alternative unless they confirm it.
+- **"runs postinstall on install"** — the package executes code when installed
+  and has little track record. Tell the user and prefer an established alternative.
 - **"looks like a typosquat"** — almost certainly the wrong package. Switch to
   the popular one it resembles.
 - Never try to bypass the guard (rewriting the command, piping through other

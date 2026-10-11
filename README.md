@@ -15,7 +15,7 @@ BLOCK lodahs: looks like a typosquat of popular package 'lodash'.
 
 The agent sees the reason and fixes its own command.
 
-- **Works with** Claude Code and Codex. Both use the same hook protocol, and one script covers both.
+- **Works with** Claude Code, Codex, and Gemini CLI. One script speaks all three hook protocols.
 - **Covers** npm, pnpm, yarn, bun, npx, pip, uv, uvx, poetry, pipx, cargo, gem, and go (`go get`, `go install`, `go run mod@v`).
 - **Single file, Python stdlib only.** The guard adds no dependencies of its own. Read it in five minutes.
 
@@ -27,12 +27,13 @@ The agent sees the reason and fixes its own command.
 | Too new | First published less than 30 days ago (`PKG_GUARD_MIN_AGE_DAYS`) |
 | Too few users | npm: fewer than 100 weekly downloads. crates: fewer than 100 in 90 days. gems: fewer than 1,000 total. Go (GitHub/GitLab/Bitbucket): fewer than 10 repo stars, since Go publish times come from git commits and can be backdated. |
 | Typosquat | One edit away from a popular package, and young or little-used |
+| Install script (npm) | Latest version runs `preinstall`/`install`/`postinstall` code, and the package is young (< 180 days) or little-used (< 10,000 weekly downloads) |
 
 It also catches the usual ways around a naive regex: `bash -lc "..."`, `$(...)`,
 `sudo`/`env` wrappers, `npm isntall`, `npm i x@npm:evil`, `npx -p evil`,
 `uvx --with evil`, and `pip install -r requirements.txt` (nested `-r` included).
 
-In Claude Code it also checks file edits: dependencies the agent adds to
+In Claude Code and Gemini CLI it also checks file edits: dependencies the agent adds to
 `package.json`, `requirements*.txt`, `pyproject.toml`, `Cargo.toml`, `Gemfile`, or `go.mod`
 are checked before the edit is written, so a later bare `npm install` can't sneak them in.
 
@@ -63,6 +64,14 @@ type = "command"
 command = "python3 ~/.pkg-guard/pkg_guard.py hook"
 timeout = 20
 ```
+
+### Gemini CLI
+
+```bash
+git clone https://github.com/somesh-ghaturle/pkg-guard ~/.pkg-guard
+```
+
+Then merge [`examples/gemini-settings.json`](examples/gemini-settings.json) into `~/.gemini/settings.json`, with the command set to `python3 ~/.pkg-guard/pkg_guard.py hook`. It checks `run_shell_command` plus `write_file`/`replace` edits to manifests.
 
 ### Claude Code without the plugin
 
@@ -95,7 +104,7 @@ comments, heredocs and `$(...)` rules so ordinary commands can't hide an install
 accident, but no static check can see every way a shell can run code.
 
 It is a heuristic guard, not a sandbox. It checks install commands and, in
-Claude Code, manifest edits. It does not check imports, and in Codex it does not see
+Claude Code and Gemini CLI, manifest edits. It does not check imports, and in Codex it does not see
 manifest edits made with `apply_patch`, and it does not see manifests changed by shell commands (`echo evil >> requirements.txt`). `pyproject.toml` and `Cargo.toml` edits are
 only checked on Python 3.11+ (needs `tomllib`). Go modules on vanity domains (`go.uber.org/...`) get no star signal, and their age can be backdated. The pass cache is a convenience, not a security boundary: the hook refuses agent writes to it, but a determined agent could still reach it indirectly. Packages from custom indexes are
 still checked against the public registry. Tarball and git URLs are not checked.

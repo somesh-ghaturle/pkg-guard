@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "BeforeTool": [
+      {
+        "matcher": "run_shell_command|write_file|replace",
+        "hooks": [
+          { "name": "pkg-guard", "type": "command", "command": "python3 /path/to/pkg_guard.py hook", "timeout": 20000 }
+        ]
+      }
+    ]
+  }
+}

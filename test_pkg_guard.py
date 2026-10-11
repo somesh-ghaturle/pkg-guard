@@ -221,6 +221,18 @@ class CheckTest(unittest.TestCase):
         with mock.patch.object(pg, "fetch", return_value=None):
             self.assertIsNone(pg.registry_info("go", "github.com/nope/nope/a/b"))
 
+    def test_npm_install_scripts(self):
+        meta = {"time": {"created": "2015-01-01T00:00:00Z"}, "dist-tags": {"latest": "2.0.0"},
+                "versions": {"1.0.0": {"scripts": {"postinstall": "x"}},
+                             "2.0.0": {"scripts": {"test": "x", "preinstall": "y"}, "gypfile": True}}}
+        urls = {"https://registry.npmjs.org/some-lib": meta,
+                "https://api.npmjs.org/downloads/point/last-week/some-lib": {"downloads": 500}}
+        with mock.patch.object(pg, "fetch_json", side_effect=lambda u: urls[u]):
+            info = pg.registry_info("npm", "some-lib")
+        self.assertEqual(info["install_scripts"], ["install", "preinstall"])
+        self.assertIn("runs install/preinstall on install", self.run_check("npm", "some-lib", info))
+        self.assertIsNone(self.run_check("npm", "some-lib", dict(OLD_POPULARISH, install_scripts=["install"])))
+
     def test_allowlist(self):
         with mock.patch.dict("os.environ", {"PKG_GUARD_ALLOW": "internal-thing"}):
             self.assertIsNone(self.run_check("npm", "internal-thing", None))
@@ -359,6 +371,31 @@ class HookTest(unittest.TestCase):
             out = pg.hook_output(payload)["hookSpecificOutput"]
         self.assertEqual(out["permissionDecision"], "deny")
         self.assertIn("reqeusts", out["permissionDecisionReason"])
+
+    def test_gemini(self):
+        def run(payload):
+            p = subprocess.run([sys.executable, "pkg_guard.py", "hook"], input=json.dumps(payload),
+                               capture_output=True, text=True)
+            return json.loads(p.stdout) if p.stdout else None
+        shell = {"hook_event_name": "BeforeTool", "tool_name": "run_shell_command",
+                 "tool_input": {"command": "pip install reqeusts"}}
+        with mock.patch.object(pg, "registry_info", return_value=None):
+            out = pg.hook_output(shell)
+        self.assertEqual(out["decision"], "deny")
+        self.assertIn("reqeusts", out["reason"])
+        self.assertIsNone(run(dict(shell, tool_input={"command": "git status"})))
+        self.assertIsNone(run(dict(shell, tool_name="read_file", tool_input={"file_path": "package.json"})))
+        self.assertEqual(run({"hook_event_name": "BeforeTool", "tool_name": "write_file",
+                              "tool_input": {"file_path": 123}})["decision"], "deny")  # crash denies
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "package.json"), "w") as f:
+                f.write('{"dependencies": {"a": "1", "b": "1"}}')
+            edit = {"hook_event_name": "BeforeTool", "tool_name": "replace", "cwd": d,
+                    "tool_input": {"file_path": "package.json", "old_string": '"1"', "new_string": '"1", "evil": "1"',
+                                   "allow_multiple": True}}
+            with mock.patch.object(pg, "registry_info", return_value=None):
+                self.assertIn("evil", pg.hook_output(edit)["reason"])
 
     def test_allow_paths(self):
         self.assertIsNone(pg.hook_output({"tool_name": "Edit", "tool_input": {}}))

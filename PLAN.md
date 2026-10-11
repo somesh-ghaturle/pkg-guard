@@ -54,9 +54,10 @@ Ordered by how much risk each one removes.
 ## v0.3 — better signals, more agents
 
 1. **Gemini CLI adapter** — `pkg-guard hook --format gemini` (BeforeTool event, its own
-   deny JSON). Example `settings.json`.
+   deny JSON). Example `settings.json`. ✅ (auto-detected from
+   `hook_event_name`, no flag; `examples/gemini-settings.json`)
 2. **Install-script signal (npm)** — latest version has `preinstall/install/postinstall`
-   and the package is young or low-download → deny with that reason.
+   and the package is young or low-download → deny with that reason. ✅ (`gypfile` counts as `install`)
 3. **Generated popular list** — script that pulls top-N names per registry into
    `popular.txt`-style data embedded in the file; improves typosquat recall.
 4. **Release v0.3.0.**
