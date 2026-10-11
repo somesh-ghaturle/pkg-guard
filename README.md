@@ -33,7 +33,7 @@ It also catches the usual ways around a naive regex: `bash -lc "..."`, `$(...)`,
 `sudo`/`env` wrappers, `npm isntall`, `npm i x@npm:evil`, `npx -p evil`,
 `uvx --with evil`, and `pip install -r requirements.txt` (nested `-r` included).
 
-In Claude Code and Gemini CLI it also checks file edits: dependencies the agent adds to
+It also checks file edits (Claude Code `Write`/`Edit`, Codex `apply_patch`, Gemini CLI `write_file`/`replace`): dependencies the agent adds to
 `package.json`, `requirements*.txt`, `pyproject.toml`, `Cargo.toml`, `Gemfile`, or `go.mod`
 are checked before the edit is written, so a later bare `npm install` can't sneak them in.
 
@@ -57,7 +57,7 @@ Then add the hook to `~/.codex/config.toml`, or use [`examples/codex-hooks.json`
 
 ```toml
 [[hooks.PreToolUse]]
-matcher = "Bash"
+matcher = "Bash|apply_patch"
 
 [[hooks.PreToolUse.hooks]]
 type = "command"
@@ -103,11 +103,9 @@ file, or `python -c "import subprocess..."`. The command parser follows bash's q
 comments, heredocs and `$(...)` rules so ordinary commands can't hide an install by
 accident, but no static check can see every way a shell can run code.
 
-It is a heuristic guard, not a sandbox. It checks install commands and, in
-Claude Code and Gemini CLI, manifest edits. It does not check imports, and in Codex it does not see
-manifest edits made with `apply_patch`, and it does not see manifests changed by shell commands (`echo evil >> requirements.txt`). `pyproject.toml` and `Cargo.toml` edits are
+It is a heuristic guard, not a sandbox. It checks install commands and manifest edits made through the agent's edit tools. It does not check imports, and it does not see manifests changed by shell commands (`echo evil >> requirements.txt`). `pyproject.toml` and `Cargo.toml` edits are
 only checked on Python 3.11+ (needs `tomllib`). Go modules on vanity domains (`go.uber.org/...`) get no star signal, and their age can be backdated. The pass cache is a convenience, not a security boundary: the hook refuses agent writes to it, but a determined agent could still reach it indirectly. Packages from custom indexes are
-still checked against the public registry. Tarball and git URLs are not checked.
+still checked against the public registry. Tarball and git URLs are not checked. Codex `apply_patch` hunks must match the file exactly; one that only matches after Codex's whitespace-tolerant matching is denied, and the agent is asked to retry with the exact text.
 
 ## Development
 

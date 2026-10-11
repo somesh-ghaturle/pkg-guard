@@ -1,5 +1,5 @@
 [[hooks.PreToolUse]]
-matcher = "Bash"
+matcher = "Bash|apply_patch"
 
 [[hooks.PreToolUse.hooks]]
 type = "command"

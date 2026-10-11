@@ -40,8 +40,8 @@ Ordered by how much risk each one removes.
    `package.json` and running bare `npm install`. Hook `Edit|Write|MultiEdit` (Claude) /
    `apply_patch` (Codex) on `package.json`, `requirements*.txt`, `pyproject.toml`,
    `Cargo.toml`, `Gemfile`: diff old vs new dependency names, check only the added ones.
-   Update plugin hook matcher + example configs. ✅ (Claude Code; Codex `apply_patch`
-   pending — need its PreToolUse payload shape first. TOML manifests need Python 3.11+.)
+   Update plugin hook matcher + example configs. ✅ (Claude Code; Codex `apply_patch` ✅ 2026-10-11,
+   payload `{"command": "<patch>"}`. TOML manifests need Python 3.11+.)
 2. **Nested `-r` in requirements files** — follow includes (cycle-safe). ✅
 3. **Go modules** — `go get x`, `go install x@v`. Existence via `proxy.golang.org/<mod>/@v/list`,
    age via `@latest` `Time`. No download counts; typosquat vs a small popular list. ✅

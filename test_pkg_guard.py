@@ -402,6 +402,36 @@ class HookTest(unittest.TestCase):
             with mock.patch.object(pg, "registry_info", return_value=None):
                 self.assertIn("evil", pg.hook_output(edit)["reason"])
 
+    def test_codex_apply_patch(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "package.json"), "w") as f:
+                f.write('{\n  "dependencies": {\n    "lodash": "^4"\n  }\n}\n')
+            with open(os.path.join(d, "old.json"), "w") as f:
+                f.write('{"dependencies": {"evil": "1"}}\n')
+
+            def blocked(patch, tool="apply_patch"):
+                payload = {"tool_name": tool, "cwd": d, "tool_input": {"command": patch}}
+                with mock.patch.object(pg, "registry_info", return_value=None):
+                    out = pg.hook_output(payload)
+                return out and out["hookSpecificOutput"]["permissionDecisionReason"]
+
+            update = ('*** Begin Patch\n*** Update File: package.json\n@@\n   "dependencies": {\n'
+                      '-    "lodash": "^4"\n+    "lodash": "^4",\n+    "evil": "1"\n   }\n*** End Patch')
+            self.assertIn("evil", blocked(update))
+            self.assertIn("evil", blocked("apply_patch <<'EOF'\n" + update + "\nEOF", tool="Bash"))
+            insert = ('*** Begin Patch\n*** Update File: package.json\n@@   "dependencies": {\n'
+                      '+    "evil": "1",\n*** End Patch')
+            self.assertIn("evil", blocked(insert))
+            add = '*** Begin Patch\n*** Add File: sub/requirements.txt\n+evil-pkg==1\n*** End Patch'
+            self.assertIn("evil-pkg", blocked(add))
+            move = '*** Begin Patch\n*** Update File: old.json\n*** Move to: package.json\n@@\n {"dependencies"\n*** End Patch'
+            self.assertIn("evil", blocked(move))
+            self.assertIn("could not apply", blocked(update.replace("lodash", "nope")))
+            harmless = ('*** Begin Patch\n*** Update File: package.json\n@@\n-    "lodash": "^4"\n'
+                        '+    "lodash": "^4.17"\n*** Add File: notes.txt\n+evil\n*** Delete File: x.json\n*** End Patch')
+            self.assertFalse(blocked(harmless))
+
     def test_allow_paths(self):
         self.assertIsNone(pg.hook_output({"tool_name": "Edit", "tool_input": {}}))
         self.assertIsNone(pg.hook_output({"tool_name": "Bash", "tool_input": {"command": "ls"}}))

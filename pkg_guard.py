@@ -840,6 +840,55 @@ def check_edit(tool, inp, cwd=None):
         return [r for r in ex.map(lambda n: check(eco, n), added) if r]
 
 
+def _patch_edits(patch, cwd=None):
+    """[(tool, tool_input)] Write/MultiEdit calls equivalent to a Codex apply_patch patch."""
+    files, cur = [], None
+    for ln in patch.splitlines():
+        m = re.match(r"^\*\*\* (Add|Update|Delete) File: (.+)$", ln)
+        if m:
+            cur = {"op": m.group(1), "path": m.group(2).strip(), "move": None, "add": [], "hunks": []}
+            files.append(cur)
+        elif cur is None or ln.startswith(("*** End Patch", "*** End of File")):
+            continue
+        elif ln.startswith("*** Move to: "):
+            cur["move"] = ln[13:].strip()
+        elif cur["op"] == "Add":
+            if ln.startswith("+"):
+                cur["add"].append(ln[1:])
+        elif cur["op"] == "Update":
+            if ln.startswith("@@"):  # `@@ [dependencies]` names a line the hunk sits under
+                if not cur["hunks"] or cur["hunks"][-1][1] or cur["hunks"][-1][2]:
+                    cur["hunks"].append(["", [], []])
+                cur["hunks"][-1][0] = ln[2:].strip() or cur["hunks"][-1][0]
+                continue
+            if not cur["hunks"]:
+                cur["hunks"].append(["", [], []])
+            header, old, new = cur["hunks"][-1]
+            tag, body = ln[:1] or " ", ln[1:]
+            if tag in " -":
+                old.append(body)
+            if tag in " +":
+                new.append(body)
+    out = []
+    for f in files:
+        if f["op"] == "Add":
+            out.append(("Write", {"file_path": f["path"], "content": "\n".join(f["add"]) + "\n"}))
+        elif f["op"] == "Update":
+            edits = []
+            for header, old, new in f["hunks"]:
+                o, n = "\n".join(old), "\n".join(new)
+                if not o and header:  # pure insertion: anchor it under the @@ line
+                    o, n = header, header + "\n" + n
+                edits.append({"old_string": o, "new_string": n})
+            if f["move"]:  # the moved file's new content lands at the destination
+                text = _edited_text("MultiEdit", {"edits": edits}, _read(os.path.join(cwd or ".", f["path"])))
+                out.append(("Write", {"file_path": f["move"], "content": text}) if text is not None
+                           else ("MultiEdit", {"file_path": f["move"], "edits": edits}))
+            else:
+                out.append(("MultiEdit", {"file_path": f["path"], "edits": edits}))
+    return out
+
+
 # Gemini CLI tool names -> the Claude Code tool with the same arguments
 GEMINI_TOOLS = {"run_shell_command": "Bash", "write_file": "Write", "replace": "Edit"}
 
@@ -863,18 +912,27 @@ def hook_output(payload):
         if inp.get("allow_multiple"):
             inp = dict(inp, replace_all=True)
     cache_dir = os.path.dirname(CACHE_FILE or "") or None
+    edits = None
     if tool in ("Write", "Edit", "MultiEdit"):
-        target = os.path.realpath(os.path.join(cwd or ".", inp.get("file_path", "")))
-        if cache_dir and target.startswith(os.path.realpath(cache_dir) + os.sep):
-            reasons = ["%s is pkg-guard's cache; writing it would skip the checks." % target]
-        else:
-            reasons = check_edit(tool, inp, cwd)
-        what = "dependency edit"
+        edits = [(tool, inp)]
+    elif tool == "apply_patch":  # Codex: {"command": "*** Begin Patch ..."}
+        edits = _patch_edits(str(inp.get("command", "")), cwd)
+    if edits is not None:
+        reasons, what = [], "dependency edit"
+        for t, i in edits:
+            target = os.path.realpath(os.path.join(cwd or ".", i.get("file_path", "")))
+            if cache_dir and target.startswith(os.path.realpath(cache_dir) + os.sep):
+                reasons.append("%s is pkg-guard's cache; writing it would skip the checks." % target)
+            else:
+                reasons += check_edit(t, i, cwd)
     elif tool == "Bash":
         cmd = inp.get("command", "")
         if isinstance(cmd, list):  # Codex may send argv, e.g. ["bash", "-lc", "..."]
             cmd = " ".join(shlex.quote(str(a)) for a in cmd)
         reasons, what = check_command(cmd, cwd), "install"
+        if "*** Begin Patch" in cmd:  # `apply_patch <<'EOF'` run through the shell
+            patch = cmd[cmd.index("*** Begin Patch"):]
+            reasons += [r for t, i in _patch_edits(patch, cwd) for r in check_edit(t, i, cwd)]
         # ponytail: substring match; a determined agent can still reach the file indirectly
         if CACHE_FILE and os.path.basename(CACHE_FILE) in cmd:
             reasons.append("the command touches pkg-guard's cache (%s)." % CACHE_FILE)
