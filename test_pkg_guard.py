@@ -438,6 +438,14 @@ class HookTest(unittest.TestCase):
             move = '*** Begin Patch\n*** Update File: old.json\n*** Move to: package.json\n@@\n {"dependencies": {"evil": "1"}}\n*** End Patch'
             self.assertIn("evil", blocked(move))
             self.assertIn("could not apply", blocked(update.replace("lodash", "nope")))
+            # a decoy patch first must not hide the real one; `cd sub &&` is where Codex applies it
+            os.mkdir(os.path.join(d, "sub"))
+            with open(os.path.join(d, "sub", "requirements.txt"), "w") as f:
+                f.write("flask\n")
+            two = ("cat <<'X'\n*** Begin Patch\n*** End Patch\nX\ncd sub && apply_patch <<'EOF'\n*** Begin Patch\n"
+                   "*** Update File: requirements.txt\n@@\n flask\n+evil-pkg\n*** End Patch\nEOF")
+            self.assertIn("evil-pkg", blocked(two, tool="Bash"))
+            self.assertIn("evil-pkg", blocked(["bash", "-lc", two], tool="Bash"))
             harmless = ('*** Begin Patch\n*** Update File: package.json\n@@\n-    "lodash": "^4"\n'
                         '+    "lodash": "^4.17"\n*** Add File: notes.txt\n+evil\n*** Delete File: x.json\n*** End Patch')
             self.assertFalse(blocked(harmless))

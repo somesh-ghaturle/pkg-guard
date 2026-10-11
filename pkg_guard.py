@@ -907,7 +907,7 @@ def _patch_edits(patch, cwd=None):
         ln = ln[:-1] if ln.endswith("\r") else ln
         head = ln.rstrip() if mode == "update" else ln.strip()  # Codex trims less inside updates
         m = re.match(r"^\*\*\* (Add|Delete|Update) File: (.*)$", head)
-        if mode == "start" and head == "*** Begin Patch":
+        if mode in ("start", "end") and head == "*** Begin Patch":
             mode = "files"
         elif head == "*** End Patch" and mode != "start":
             mode = "end"
@@ -939,7 +939,7 @@ def _patch_edits(patch, cwd=None):
     out, state = [], {}  # later hunks see earlier ones' results, as when Codex applies them in order
 
     def resolve(p):
-        return os.path.normpath(os.path.join(cwd or ".", p))
+        return os.path.join(cwd or ".", p)  # not normpath: `symlink/..` isn't the parent dir
     for f in files:
         src = resolve(f["path"])
         if f["op"] == "Delete":
@@ -997,9 +997,14 @@ def hook_output(payload):
         if isinstance(cmd, list):  # Codex may send argv, e.g. ["bash", "-lc", "..."]
             cmd = " ".join(shlex.quote(str(a)) for a in cmd)
         reasons, what = check_command(cmd, cwd), "install"
-        if "*** Begin Patch" in cmd:  # `apply_patch <<'EOF'` run through the shell
-            patch = cmd[cmd.index("*** Begin Patch"):]
-            reasons += [r for t, i in _patch_edits(patch, cwd) for r in check_edit(t, i, cwd)]
+        raw = "\n".join(map(str, inp["command"])) if isinstance(inp.get("command"), list) else cmd
+        for m in re.finditer(r"\*\*\* Begin Patch", raw):  # apply_patch run through the shell
+            line = raw[:m.start()].rstrip("\n").rsplit("\n", 1)[-1]
+            cd = re.search(r"\bcd\s+(['\"]?)([^'\"\s]+)\1\s*&&\s*apply_patch\b", line)
+            wd = os.path.join(cwd or ".", cd.group(2)) if cd else cwd
+            end = raw.find("*** End Patch", m.start())
+            patch = raw[m.start():] if end < 0 else raw[m.start():end + len("*** End Patch")]
+            reasons += [r for t, i in _patch_edits(patch, wd) for r in check_edit(t, i, wd)]
         # ponytail: substring match; a determined agent can still reach the file indirectly
         if CACHE_FILE and os.path.basename(CACHE_FILE) in cmd:
             reasons.append("the command touches pkg-guard's cache (%s)." % CACHE_FILE)
