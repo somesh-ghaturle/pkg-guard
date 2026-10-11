@@ -24,7 +24,7 @@ __version__ = "0.2.0"
 UA = "pkg-guard/%s (https://github.com/somesh-ghaturle/pkg-guard)" % __version__
 TIMEOUT = 4
 
-# ponytail: hand-picked top names, swap for a generated top-N list if typo recall matters
+# Hand-picked names; GENERATED_POPULAR at the bottom of the file adds registry top-N lists.
 POPULAR = {
     "npm": """react react-dom vue angular svelte next nuxt express koa fastify lodash underscore
         axios request node-fetch chalk commander yargs debug moment dayjs date-fns uuid dotenv
@@ -912,6 +912,499 @@ def main(argv=None):
         return 0
     print(__doc__.strip(), file=sys.stderr)
     return 2
+
+
+GENERATED_POPULAR = {  # by scripts/gen_popular.py on 2026-10-11; do not edit by hand
+    "npm": """
+        @adobe/css-tools @alloc/quick-lru @aws-sdk/client-sso @aws-sdk/core
+        @aws-sdk/credential-provider-env @aws-sdk/credential-provider-http
+        @aws-sdk/credential-provider-ini @aws-sdk/credential-provider-node
+        @aws-sdk/credential-provider-process @aws-sdk/credential-provider-web-identity
+        @aws-sdk/middleware-host-header @aws-sdk/middleware-logger
+        @aws-sdk/middleware-recursion-detection @aws-sdk/middleware-user-agent
+        @aws-sdk/nested-clients @aws-sdk/region-config-resolver @aws-sdk/token-providers
+        @aws-sdk/types @aws-sdk/util-endpoints @aws-sdk/util-user-agent-browser
+        @aws-sdk/util-user-agent-node @aws-sdk/xml-builder @babel/code-frame @babel/compat-data
+        @babel/core @babel/generator @babel/helper-annotate-as-pure
+        @babel/helper-compilation-targets @babel/helper-create-class-features-plugin
+        @babel/helper-define-polyfill-provider @babel/helper-globals
+        @babel/helper-member-expression-to-functions @babel/helper-module-imports
+        @babel/helper-module-transforms @babel/helper-optimise-call-expression
+        @babel/helper-plugin-utils @babel/helper-replace-supers @babel/helper-string-parser
+        @babel/helper-validator-identifier @babel/helper-validator-option @babel/helpers
+        @babel/parser @babel/plugin-syntax-import-attributes @babel/plugin-syntax-json-strings
+        @babel/plugin-syntax-jsx @babel/plugin-syntax-logical-assignment-operators
+        @babel/plugin-syntax-nullish-coalescing-operator @babel/plugin-syntax-numeric-separator
+        @babel/plugin-syntax-object-rest-spread @babel/plugin-syntax-optional-catch-binding
+        @babel/plugin-syntax-top-level-await @babel/plugin-syntax-typescript
+        @babel/plugin-transform-block-scoping @babel/plugin-transform-classes
+        @babel/plugin-transform-computed-properties @babel/plugin-transform-for-of
+        @babel/plugin-transform-modules-commonjs @babel/plugin-transform-parameters
+        @babel/plugin-transform-react-jsx-source @babel/plugin-transform-spread @babel/runtime
+        @babel/template @babel/traverse @babel/types @bcoe/v8-coverage @colors/colors
+        @csstools/color-helpers @csstools/css-calc @csstools/css-parser-algorithms
+        @csstools/css-tokenizer @emnapi/core @emnapi/runtime @emnapi/wasi-threads
+        @esbuild/linux-x64 @eslint-community/eslint-utils @eslint-community/regexpp
+        @eslint/config-array @eslint/config-helpers @eslint/core @eslint/eslintrc @eslint/js
+        @eslint/object-schema @eslint/plugin-kit @floating-ui/core @floating-ui/dom
+        @floating-ui/react-dom @floating-ui/utils @hookform/resolvers @humanfs/core
+        @humanfs/node @humanwhocodes/retry @img/sharp-libvips-linuxmusl-x64 @img/sharp-linux-x64
+        @img/sharp-linuxmusl-x64 @inquirer/type @isaacs/cliui @istanbuljs/schema @jest/console
+        @jest/environment @jest/expect-utils @jest/fake-timers @jest/globals @jest/reporters
+        @jest/schemas @jest/source-map @jest/test-result @jest/transform @jest/types
+        @jridgewell/gen-mapping @jridgewell/remapping @jridgewell/resolve-uri
+        @jridgewell/sourcemap-codec @jridgewell/trace-mapping @napi-rs/wasm-runtime
+        @noble/hashes @nodelib/fs.scandir @nodelib/fs.stat @nodelib/fs.walk
+        @octokit/openapi-types @octokit/types @openai/codex @opentelemetry/api
+        @opentelemetry/api-logs @opentelemetry/core @opentelemetry/instrumentation
+        @opentelemetry/resources @opentelemetry/sdk-metrics @opentelemetry/sdk-trace-base
+        @opentelemetry/semantic-conventions @pkgjs/parseargs @pkgr/core @protobufjs/aspromise
+        @protobufjs/codegen @protobufjs/eventemitter @protobufjs/fetch @protobufjs/inquire
+        @protobufjs/pool @protobufjs/utf8 @radix-ui/number @radix-ui/primitive
+        @radix-ui/react-arrow @radix-ui/react-avatar @radix-ui/react-collapsible
+        @radix-ui/react-collection @radix-ui/react-compose-refs @radix-ui/react-context
+        @radix-ui/react-dialog @radix-ui/react-direction @radix-ui/react-dismissable-layer
+        @radix-ui/react-dropdown-menu @radix-ui/react-focus-guards @radix-ui/react-focus-scope
+        @radix-ui/react-id @radix-ui/react-label @radix-ui/react-menu @radix-ui/react-popover
+        @radix-ui/react-popper @radix-ui/react-portal @radix-ui/react-presence
+        @radix-ui/react-primitive @radix-ui/react-progress @radix-ui/react-roving-focus
+        @radix-ui/react-scroll-area @radix-ui/react-select @radix-ui/react-separator
+        @radix-ui/react-tabs @radix-ui/react-toggle @radix-ui/react-tooltip
+        @radix-ui/react-use-callback-ref @radix-ui/react-use-controllable-state
+        @radix-ui/react-use-escape-keydown @radix-ui/react-use-layout-effect
+        @radix-ui/react-use-previous @radix-ui/react-use-size @radix-ui/react-visually-hidden
+        @radix-ui/rect @rolldown/pluginutils @rollup/pluginutils @rollup/rollup-linux-x64-gnu
+        @rollup/rollup-linux-x64-musl @sinclair/typebox @sindresorhus/is @sinonjs/commons
+        @sinonjs/fake-timers @smithy/config-resolver @smithy/core
+        @smithy/credential-provider-imds @smithy/fetch-http-handler @smithy/hash-node
+        @smithy/is-array-buffer @smithy/middleware-endpoint @smithy/middleware-retry
+        @smithy/middleware-serde @smithy/middleware-stack @smithy/node-config-provider
+        @smithy/property-provider @smithy/protocol-http @smithy/querystring-builder
+        @smithy/querystring-parser @smithy/service-error-classification
+        @smithy/shared-ini-file-loader @smithy/signature-v4 @smithy/smithy-client @smithy/types
+        @smithy/url-parser @smithy/util-base64 @smithy/util-body-length-browser
+        @smithy/util-buffer-from @smithy/util-defaults-mode-browser
+        @smithy/util-defaults-mode-node @smithy/util-endpoints @smithy/util-hex-encoding
+        @smithy/util-middleware @smithy/util-retry @smithy/util-stream @smithy/util-uri-escape
+        @smithy/util-utf8 @swc/helpers @tailwindcss/node @tailwindcss/oxide
+        @tailwindcss/oxide-linux-x64-gnu @tailwindcss/oxide-linux-x64-musl @tanstack/query-core
+        @tanstack/react-query @testing-library/dom @testing-library/jest-dom @tootallnate/once
+        @types/babel__core @types/babel__generator @types/babel__template @types/body-parser
+        @types/chai @types/d3-array @types/d3-color @types/d3-ease @types/d3-interpolate
+        @types/d3-path @types/d3-shape @types/d3-time @types/d3-timer @types/deep-eql
+        @types/estree @types/express @types/express-serve-static-core @types/hast
+        @types/istanbul-lib-coverage @types/istanbul-lib-report @types/istanbul-reports
+        @types/json-schema @types/json5 @types/lodash @types/mdast @types/ms @types/node
+        @types/prop-types @types/qs @types/range-parser @types/react @types/react-dom
+        @types/send @types/serve-static @types/stack-utils @types/unist @types/ws @types/yargs
+        @types/yargs-parser @typescript-eslint/eslint-plugin @typescript-eslint/parser
+        @typescript-eslint/project-service @typescript-eslint/scope-manager
+        @typescript-eslint/tsconfig-utils @typescript-eslint/type-utils @typescript-eslint/types
+        @typescript-eslint/typescript-estree @typescript-eslint/utils
+        @typescript-eslint/visitor-keys @ungap/structured-clone @vitest/expect @vitest/mocker
+        @vitest/pretty-format @vitest/runner @vitest/snapshot @vitest/spy @vitest/utils abbrev
+        abort-controller accepts acorn acorn-jsx acorn-walk agent-base aggregate-error ajv
+        ajv-formats ajv-keywords ansi-colors ansi-escapes ansi-regex ansi-styles any-promise
+        anymatch arg argparse aria-hidden aria-query array-buffer-byte-length array-flatten
+        array-includes array-union array.prototype.findlastindex array.prototype.flat
+        array.prototype.flatmap arraybuffer.prototype.slice arrify assertion-error ast-types
+        async async-function asynckit autoprefixer available-typed-arrays axios axobject-query
+        babel-jest babel-plugin-istanbul babel-plugin-jest-hoist babel-plugin-polyfill-corejs3
+        babel-preset-jest balanced-match base64-js baseline-browser-mapping binary-extensions bl
+        bluebird bn.js body-parser boolbase brace-expansion braces browserslist bser buffer
+        buffer-crc32 buffer-from bytes cacache call-bind call-bind-apply-helpers call-bound
+        callsites camelcase camelcase-css caniuse-lite chai chalk char-regex chardet chokidar
+        chownr ci-info cjs-module-lexer class-variance-authority clean-stack cli-cursor
+        cli-spinners cli-truncate cli-width cliui clone clsx color color-convert color-name
+        color-string colorette combined-stream commander concat-map content-disposition
+        content-type convert-source-map cookie cookie-signature core-js core-js-compat
+        core-util-is cors cosmiconfig cross-spawn css-select css-tree css-what cssesc cssom
+        cssstyle csstype d3-array d3-color d3-ease d3-format d3-interpolate d3-path d3-scale
+        d3-shape d3-time d3-time-format d3-timer data-uri-to-buffer data-urls data-view-buffer
+        data-view-byte-length data-view-byte-offset date-fns dayjs debug decamelize decimal.js
+        decimal.js-light decompress-response dedent deep-eql deep-is deepmerge
+        define-data-property define-lazy-prop define-properties define-property delayed-stream
+        depd dequal destroy detect-libc detect-node-es didyoumean diff diff-sequences dir-glob
+        dlv doctrine dom-accessibility-api dom-helpers dom-serializer domelementtype domhandler
+        domutils dotenv dunder-proto eastasianwidth ecdsa-sig-formatter ee-first
+        electron-to-chromium emoji-regex encodeurl end-of-stream enhanced-resolve entities
+        env-paths error-ex es-abstract es-define-property es-errors es-module-lexer
+        es-object-atoms es-set-tostringtag es-shim-unscopables es-to-primitive esbuild escalade
+        escape-html escape-string-regexp escodegen eslint eslint-config-prettier
+        eslint-import-resolver-node eslint-module-utils eslint-plugin-import eslint-plugin-react
+        eslint-scope eslint-visitor-keys espree esprima esquery esrecurse estraverse
+        estree-walker esutils etag event-target-shim eventemitter3 events execa expect
+        expect-type express extend extend-shallow fast-deep-equal fast-equals fast-glob
+        fast-json-stable-stringify fast-levenshtein fast-uri fast-xml-parser fastq fb-watchman
+        fdir fflate figures file-entry-cache file-type fill-range finalhandler find-cache-dir
+        find-up flat-cache flatted follow-redirects for-each foreground-child form-data
+        forwarded fraction.js fresh fs-extra fs.realpath function-bind function.prototype.name
+        functions-have-names gaxios gcp-metadata gensync get-caller-file get-east-asian-width
+        get-intrinsic get-nonce get-package-type get-proto get-stream get-symbol-description
+        get-tsconfig glob glob-parent glob-to-regexp globals globalthis globby
+        google-auth-library google-logging-utils gopd graceful-fs graphemer has-bigints has-flag
+        has-property-descriptors has-proto has-symbols has-tostringtag hasown hosted-git-info
+        html-encoding-sniffer html-escaper htmlparser2 http-cache-semantics http-errors
+        http-proxy-agent https-proxy-agent human-signals iconv-lite ieee754 ignore immediate
+        immer import-fresh import-in-the-middle import-local imurmurhash indent-string inflight
+        inherits ini inquirer internal-slot internmap ip-address ipaddr.js is-array-buffer
+        is-arrayish is-async-function is-bigint is-binary-path is-boolean-object is-buffer
+        is-callable is-core-module is-data-view is-date-object is-descriptor is-docker
+        is-extendable is-extglob is-finalizationregistry is-fullwidth-code-point
+        is-generator-function is-glob is-interactive is-map is-negative-zero is-number
+        is-number-object is-obj is-path-inside is-plain-obj is-plain-object
+        is-potential-custom-element-name is-promise is-regex is-set is-shared-array-buffer
+        is-stream is-string is-symbol is-typed-array is-unicode-supported is-weakmap is-weakref
+        is-weakset is-wsl isarray isexe isobject istanbul-lib-coverage istanbul-lib-instrument
+        istanbul-lib-report istanbul-lib-source-maps istanbul-reports jackspeak jest
+        jest-changed-files jest-circus jest-cli jest-diff jest-docblock jest-environment-node
+        jest-get-type jest-haste-map jest-leak-detector jest-matcher-utils jest-message-util
+        jest-mock jest-regex-util jest-resolve jest-resolve-dependencies jest-runner
+        jest-runtime jest-snapshot jest-util jest-validate jest-watcher jest-worker jiti jose
+        js-tokens js-yaml jsdom jsesc json-buffer json-parse-even-better-errors
+        json-schema-traverse json-stable-stringify-without-jsonify json5 jsonfile jsonwebtoken
+        jwa jws keyv kind-of kleur leven levn lie lightningcss lightningcss-linux-x64-gnu
+        lightningcss-linux-x64-musl lilconfig lines-and-columns loader-utils locate-path lodash
+        lodash.isplainobject lodash.merge log-symbols long loose-envify loupe lru-cache
+        lz-string magic-string make-dir make-error make-fetch-happen math-intrinsics mdn-data
+        media-typer merge-descriptors merge-stream merge2 methods micromark-util-character
+        micromark-util-symbol micromark-util-types micromatch mime mime-db mime-types mimic-fn
+        mimic-response min-indent minimatch minimist minipass minizlib mkdirp ms mute-stream mz
+        nanoid natural-compare negotiator neo-async node-addon-api node-fetch node-gyp
+        node-int64 node-releases nopt normalize-package-data normalize-path normalize-url
+        npm-run-path nth-check nwsapi object-assign object-hash object-inspect object-keys
+        object.assign object.entries object.fromentries object.values on-finished once onetime
+        open optionator ora own-keys p-limit p-locate p-map p-try package-json-from-dist pako
+        parent-module parse-json parse5 parseurl path-exists path-is-absolute path-key
+        path-parse path-scurry path-to-regexp path-type pathe pathval picocolors picomatch pify
+        pirates pkg-dir pnpm possible-typed-array-names postcss postcss-import postcss-js
+        postcss-load-config postcss-nested postcss-selector-parser postcss-value-parser
+        prelude-ls prettier pretty-format proc-log process process-nextick-args progress prompts
+        prop-types protobufjs proxy-addr proxy-from-env psl pump punycode pure-rand qs
+        queue-microtask range-parser raw-body react react-dom react-hook-form react-is
+        react-remove-scroll react-remove-scroll-bar react-transition-group read-cache read-pkg
+        readable-stream readdirp recharts redent reflect.getprototypeof regenerator-runtime
+        regexp.prototype.flags regexpu-core regjsparser require-directory require-from-string
+        requires-port resolve resolve-cwd resolve-from resolve-pkg-maps restore-cursor retry
+        reusify rfdc rimraf rollup run-parallel rxjs safe-array-concat safe-buffer
+        safe-push-apply safe-regex-test safe-stable-stringify safer-buffer sax saxes scheduler
+        schema-utils semver send serialize-javascript serve-static set-function-length
+        set-function-name set-proto setimmediate setprototypeof sharp shebang-command
+        shebang-regex shell-quote side-channel side-channel-list side-channel-map
+        side-channel-weakmap siginfo signal-exit sisteransi slash slice-ansi smart-buffer socks
+        socks-proxy-agent source-map source-map-js source-map-support spdx-expression-parse
+        split2 sprintf-js ssri stack-utils statuses std-env stop-iteration-iterator
+        string-length string-width string.prototype.matchall string.prototype.trim
+        string.prototype.trimend string.prototype.trimstart string_decoder strip-ansi strip-bom
+        strip-final-newline strip-indent strip-json-comments strnum sucrase supports-color
+        supports-preserve-symlinks-flag symbol-tree synckit tailwindcss tapable tar tar-fs
+        tar-stream terser terser-webpack-plugin test-exclude thenify thenify-all through
+        through2 tiny-invariant tinybench tinyexec tinyglobby tinyrainbow tldts-core tmp
+        to-regex-range toidentifier tough-cookie tr46 ts-api-utils ts-interface-checker ts-node
+        tsconfig-paths tslib tsx type-check type-detect type-fest type-is typed-array-buffer
+        typed-array-byte-length typed-array-byte-offset typed-array-length typescript
+        typescript-eslint uglify-js unbox-primitive undici-types unique-filename unist-util-is
+        unist-util-stringify-position unist-util-visit unist-util-visit-parents universalify
+        unpipe unplugin update-browserslist-db uri-js util util-deprecate utils-merge uuid vary
+        victory-vendor vite vitest w3c-xmlserializer watchpack web-streams-polyfill
+        webidl-conversions webpack webpack-sources webpack-virtual-modules whatwg-encoding
+        whatwg-mimetype whatwg-url which which-boxed-primitive which-builtin-type
+        which-collection which-typed-array why-is-node-running word-wrap wordwrap wrap-ansi
+        wrappy write-file-atomic ws xml-name-validator xmlbuilder xmlchars xtend y18n yallist
+        yaml yargs yargs-parser yocto-queue zod zod-to-json-schema""",
+    "pypi": """
+        absl-py accelerate adal aenum agate agent-client-protocol aioboto3 aiobotocore aiodns
+        aiofile aiofiles aiohappyeyeballs aiohttp aiohttp-retry aioitertools aiosignal aiosqlite
+        alabaster alembic altair amazon-ion amqp annotated-doc annotated-types ansicolors
+        anthropic antlr4-python3-runtime anyio apache-airflow-providers-common-sql appdirs
+        apscheduler argcomplete argon2-cffi argon2-cffi-bindings arrow asgiref asn1crypto
+        ast-serialize astroid asttokens async-lru async-timeout asyncpg attrs authlib av
+        aws-cdk-asset-awscli-v1 aws-lambda-powertools aws-requests-auth aws-xray-sdk awscli
+        awscrt awswrangler azure-common azure-core azure-cosmos azure-identity
+        azure-keyvault-keys azure-keyvault-secrets azure-mgmt-core
+        azure-monitor-opentelemetry-exporter azure-servicebus azure-storage-blob
+        azure-storage-file-datalake azure-storage-queue babel backoff backports-tarfile
+        backports-zstd bandit basedpyright bcrypt beartype beautifulsoup4 bidict billiard
+        bitarray black blake3 bleach blinker blis boltons boolean-py boto3 boto3-stubs botocore
+        botocore-stubs bracex brotli bs4 build bytecode cachecontrol cached-property cachetools
+        caio catalogue cattrs cbor2 cchardet celery certifi cffi cfgv chardet charset-normalizer
+        claude-agent-sdk cleo click click-didyoumean click-option-group click-plugins click-repl
+        clickhouse-connect cloudpathlib cloudpickle cobble colorama coloredlogs colorlog comm
+        confection configargparse confluent-kafka contourpy coverage cramjam crashtest crc32c
+        cron-descriptor croniter cryptography cssselect cssselect2 cuda-bindings cuda-pathfinder
+        cuda-toolkit curl-cffi cycler cyclonedx-python-lib cyclopts cymem cython dacite daff
+        dask dask-expr databricks-labs-blueprint databricks-sdk databricks-sql-connector
+        dataclasses-json datadog datadog-api-client datamodel-code-generator datasets dateparser
+        db-dtypes dbt-adapters dbt-common dbt-core dbt-extractor dbt-protos ddtrace debugpy
+        decorator deepdiff defusedxml delta-spark deprecated deprecation deptry diff-cover dill
+        diskcache distlib distro django django-cors-headers django-filter djangorestframework
+        dnspython docker docopt docstring-parser docutils duckdb dulwich dunamai durationpy
+        ecdsa editables einops elastic-transport elasticsearch email-validator emoji entrypoints
+        envier et-xmlfile eval-type-backport events exceptiongroup execnet executing face
+        factory-boy faker fakeredis fastapi fastapi-cli fastapi-cloud-cli fastar fastavro
+        fastcore fastjsonschema fastmcp fastmcp-slim fastspec fastuuid feedparser filelock
+        filetype findpython fire firebase-admin flake8 flask flask-cors flask-login flatbuffers
+        flit-core fonttools fpdf2 fqdn freezegun frozendict frozenlist fsspec ftfy future gcsfs
+        genai-prices genson geopandas gevent ghapi gitdb gitpython glom google-ads
+        google-api-core google-api-python-client google-auth google-auth-httplib2
+        google-auth-oauthlib google-cloud-aiplatform google-cloud-appengine-logging
+        google-cloud-audit-log google-cloud-bigquery google-cloud-bigquery-storage
+        google-cloud-bigtable google-cloud-core google-cloud-firestore google-cloud-kms
+        google-cloud-logging google-cloud-monitoring google-cloud-pubsub
+        google-cloud-resource-manager google-cloud-secret-manager google-cloud-spanner
+        google-cloud-speech google-cloud-storage google-cloud-tasks google-crc32c google-genai
+        google-pasta google-re2 google-resumable-media googleapis-common-protos gql graphene
+        graphql-core graphql-relay graphviz great-expectations greenlet gremlinpython griffe
+        griffelib grimp groq grpc-google-iam-v1 grpc-interceptor grpcio grpcio-health-checking
+        grpcio-status grpcio-tools grpclib gspread gunicorn h11 h2 h3 h5py hatch-vcs hatchling
+        hf-xet hiredis holidays hpack html2text html5lib httpcore httpcore2 httplib2 httptools
+        httpx httpx-sse httpx2 huey huggingface-hub humanfriendly humanize hvac hyperframe
+        hyperlink hypothesis id identify idna ijson imageio imageio-ffmpeg imagesize
+        immutabledict import-linter importlib-metadata importlib-resources incremental inflect
+        inflection iniconfig inquirerpy installer invoke ipdb ipykernel ipython
+        ipython-pygments-lexers ipywidgets isodate isoduration isort itsdangerous jaraco-classes
+        jaraco-context jaraco-functools jedi jeepney jinja2 jira jiter jmespath joblib joserfc
+        jpype1 json-repair json5 jsonconversion jsonlines jsonpatch jsonpath-ng jsonpath-python
+        jsonpickle jsonpointer jsonref jsonschema jsonschema-path jsonschema-specifications
+        jupyter-builder jupyter-client jupyter-core jupyter-events jupyter-lsp jupyter-server
+        jupyter-server-terminals jupyterlab jupyterlab-pygments jupyterlab-server
+        jupyterlab-widgets jwcrypto kafka-python keyring kiwisolver kombu kubernetes langchain
+        langchain-anthropic langchain-classic langchain-community langchain-core
+        langchain-google-genai langchain-google-vertexai langchain-openai langchain-protocol
+        langchain-text-splitters langcodes langfuse langgraph langgraph-checkpoint
+        langgraph-prebuilt langgraph-sdk langsmith lark lazy-loader lazy-object-proxy ldap3
+        leather levenshtein libcst librt license-expression lightgbm limits linkify-it-py
+        litellm llvmlite locket lockfile logfire-api loguru lupa lxml lxml-html-clean lz4 magika
+        makefun mako mammoth markdown markdown-it-py markdownify markitdown markupsafe
+        marshmallow mashumaro matplotlib matplotlib-inline maturin maxminddb mccabe mcp
+        mcp-types mdit-py-plugins mdurl mergedeep mistralai mistune ml-dtypes mlflow
+        mlflow-skinny mlflow-tracing mmh3 mock modal more-itertools moto mpmath msal
+        msal-extensions msgpack msgspec msrest msrestazure multidict multiprocess multitasking
+        murmurhash mypy mypy-boto3-s3 mypy-extensions mysql-connector-python mysqlclient
+        narwhals natsort nbclient nbconvert nbformat nest-asyncio nest-asyncio2 networkx
+        nexus-rpc nh3 ninja nltk nodeenv nodejs-wheel-binaries notebook notebook-shim numba
+        numpy nvidia-cublas nvidia-cublas-cu12 nvidia-cuda-cupti nvidia-cuda-cupti-cu12
+        nvidia-cuda-nvrtc nvidia-cuda-nvrtc-cu12 nvidia-cuda-runtime nvidia-cuda-runtime-cu12
+        nvidia-cudnn-cu12 nvidia-cudnn-cu13 nvidia-cufft nvidia-cufft-cu12 nvidia-cufile
+        nvidia-curand nvidia-curand-cu12 nvidia-cusolver nvidia-cusolver-cu12 nvidia-cusparse
+        nvidia-cusparse-cu12 nvidia-cusparselt-cu13 nvidia-ml-py nvidia-nccl-cu12
+        nvidia-nccl-cu13 nvidia-nvjitlink nvidia-nvjitlink-cu12 nvidia-nvshmem-cu13 nvidia-nvtx
+        oauth2client oauthlib olefile omegaconf onnxruntime openai openapi-pydantic
+        openapi-schema-validator openapi-spec-validator opencv-python opencv-python-headless
+        openpyxl opensearch-py opentelemetry-api opentelemetry-distro
+        opentelemetry-exporter-otlp opentelemetry-exporter-otlp-proto-common
+        opentelemetry-exporter-otlp-proto-grpc opentelemetry-exporter-otlp-proto-http
+        opentelemetry-exporter-prometheus opentelemetry-instrumentation
+        opentelemetry-instrumentation-aiohttp-client opentelemetry-instrumentation-asgi
+        opentelemetry-instrumentation-dbapi opentelemetry-instrumentation-django
+        opentelemetry-instrumentation-fastapi opentelemetry-instrumentation-flask
+        opentelemetry-instrumentation-grpc opentelemetry-instrumentation-httpx
+        opentelemetry-instrumentation-logging opentelemetry-instrumentation-psycopg2
+        opentelemetry-instrumentation-redis opentelemetry-instrumentation-requests
+        opentelemetry-instrumentation-sqlalchemy opentelemetry-instrumentation-threading
+        opentelemetry-instrumentation-urllib opentelemetry-instrumentation-urllib3
+        opentelemetry-instrumentation-wsgi opentelemetry-proto
+        opentelemetry-resourcedetector-gcp opentelemetry-sdk opentelemetry-semantic-conventions
+        opentelemetry-semantic-conventions-ai opentelemetry-util-http opt-einsum optuna oracledb
+        ordered-set orderly-set orjson ormsgpack oscrypto oss2 outcome overrides
+        packageurl-python packaging pandas pandas-gbq pandas-stubs pandocfilters papermill
+        paramiko parse parsedatetime parso partd passlib pathable pathlib-abc pathspec
+        pathvalidate patsy pbr pbs-installer pdf2image pdfminer-six pdfplumber peewee pendulum
+        pexpect pfzy pg8000 pgvector phonenumbers pillow pillow-heif pip pip-api pip-audit
+        pip-requirements-parser pkginfo platformdirs playwright plotly pluggy ply poetry
+        poetry-core poetry-plugin-export polars polars-runtime-32 portalocker postgrest posthog
+        pre-commit prek preshed prettytable progressbar2 prometheus-client prompt-toolkit
+        propcache proto-plus protobuf psutil psycopg psycopg-binary psycopg-pool psycopg2
+        psycopg2-binary ptyprocess pure-eval puremagic py py-cpuinfo py-key-value-aio
+        py-partiql-parser py-serializable py-spy py4j pyarrow pyarrow-hotfix pyasn1
+        pyasn1-modules pyathena pybase64 pybind11 pybreaker pycares pycodestyle pycountry
+        pycparser pycryptodome pycryptodomex pydantic pydantic-ai-slim pydantic-core
+        pydantic-extra-types pydantic-graph pydantic-settings pydata-google-auth pydeck pydot
+        pydub pydyf pyee pyflakes pygithub pygments pyiceberg pyjwt pylint pymdown-extensions
+        pymongo pymssql pymupdf pymysql pynacl pyodbc pyopenssl pyotp pyparsing pypdf pypdf2
+        pypdfium2 pyperclip pyphen pyproj pyproject-hooks pyright pyroaring pyrsistent pysocks
+        pyspark pyspnego pytesseract pytest pytest-asyncio pytest-cov pytest-django pytest-env
+        pytest-html pytest-httpx pytest-json-ctrf pytest-metadata pytest-mock pytest-randomly
+        pytest-rerunfailures pytest-runner pytest-split pytest-timeout pytest-xdist
+        python-dateutil python-discovery python-docx python-dotenv python-engineio
+        python-http-client python-jose python-json-logger python-magic python-multipart
+        python-pptx python-slugify python-socketio python-utils pytimeparse pytokens pytz
+        pywavelets pywin32 pyyaml pyzmq qrcode questionary rapidfuzz ratelimit readme-renderer
+        realtime redis redshift-connector referencing regex reportlab requests requests-aws4auth
+        requests-file requests-mock requests-oauthlib requests-toolbelt requirements-parser
+        resolvelib responses respx retry retrying rfc3339-validator rfc3986 rfc3986-validator
+        rfc3987-syntax rich rich-argparse rich-click rich-rst rich-toolkit rignore rpds-py rsa
+        ruamel-yaml ruamel-yaml-clib ruff s3fs s3transfer safetensors sagemaker schema
+        scikit-image scikit-learn scipy scramp seaborn secretstorage selenium semantic-version
+        semgrep semver send2trash sendgrid sentence-transformers sentencepiece sentry-sdk
+        service-identity setproctitle setuptools setuptools-scm shapely shellingham shortuuid
+        simple-salesforce simple-websocket simplejson six skops slack-sdk slowapi smart-open
+        smmap sniffio snowballstemmer snowflake-connector-python snowflake-sqlalchemy
+        snowplow-tracker socksio sortedcontainers sounddevice soundfile soupsieve spacy
+        spacy-legacy spacy-loggers sphinx sphinxcontrib-applehelp sphinxcontrib-devhelp
+        sphinxcontrib-htmlhelp sphinxcontrib-jsmath sphinxcontrib-qthelp
+        sphinxcontrib-serializinghtml sqlalchemy sqlalchemy-utils sqlglot sqlmodel sqlparse
+        srsly sse-starlette sshtunnel stack-data starlette statsmodels stevedore storage3
+        strands-agents streamlit strenum strictyaml stripe structlog supabase supabase-auth
+        supabase-functions swebench swifter sympy synchronicity tabulate tblib temporalio
+        tenacity tensorboard termcolor terminado testcontainers text-unidecode texttable textual
+        thinc threadpoolctl thrift tifffile tiktoken time-machine tinycss2 tinyhtml5 tld
+        tldextract tokenizers toml tomli tomli-w tomlkit toolz torch torchvision tornado tox
+        tqdm traitlets transformers tree-sitter tree-sitter-languages trino trio trio-websocket
+        triton trove-classifiers truststore twilio twine twisted ty typedload typeguard typer
+        typer-slim types-awscrt types-cachetools types-certifi types-cffi types-paramiko
+        types-protobuf types-pyopenssl types-python-dateutil types-pytz types-pyyaml types-redis
+        types-requests types-s3transfer types-setuptools types-toml types-urllib3
+        typing-extensions typing-inspect typing-inspection tzdata tzlocal ua-parser
+        ua-parser-builtins uc-micro-py ujson uncalled-for unidecode unidiff universal-pathlib
+        uri-template uritemplate urllib3 uuid-utils uv uv-build uvicorn uvloop validators vcrpy
+        vcs-versioning vine virtualenv vulture wandb wasabi watchdog watchfiles watchtower
+        wcmatch wcwidth weasel weasyprint webcolors webencodings websocket-client websockets
+        werkzeug wheel whitenoise widgetsnbextension wrapt wsproto xgboost xlrd xlsxwriter
+        xmltodict xxhash yamllint yarl yfinance youtube-transcript-api zeep zipp zope-event
+        zope-interface zopfli zstandard""",
+    "crates": """
+        Inflector actix-http actix-rt actix-web addr2line adler adler2 adler32 aead aes aes-gcm
+        ahash aho-corasick aligned-vec alloc-no-stdlib alloc-stdlib allocator-api2
+        android-tzdata android_system_properties anes ansi_term anstream anstyle anstyle-parse
+        anstyle-query anstyle-wincon anyhow approx arbitrary arc-swap ark-ff ark-ff-asm
+        ark-ff-macros ark-serialize ark-std arrayref arrayvec arrow arrow-arith arrow-array
+        arrow-buffer arrow-cast arrow-data arrow-ipc arrow-ord arrow-row arrow-schema
+        arrow-select arrow-string ascii asn1-rs asn1-rs-derive asn1-rs-impl assert-json-diff
+        assert_cmd async-broadcast async-channel async-compression async-executor
+        async-global-executor async-io async-lock async-process async-recursion async-signal
+        async-std async-stream async-stream-impl async-task async-trait atoi atomic atomic-waker
+        atty autocfg aws-config aws-credential-types aws-lc-rs aws-lc-sys aws-runtime aws-sdk-s3
+        aws-sdk-sso aws-sdk-ssooidc aws-sdk-sts aws-sigv4 aws-smithy-async aws-smithy-checksums
+        aws-smithy-eventstream aws-smithy-http aws-smithy-http-client aws-smithy-json
+        aws-smithy-observability aws-smithy-query aws-smithy-runtime aws-smithy-runtime-api
+        aws-smithy-types aws-smithy-xml aws-types axum axum-core axum-macros backoff backon
+        backtrace base16ct base64 base64-simd base64ct bigdecimal bincode bindgen bit-set
+        bit-vec bit_field bitflags bitvec blake2 blake3 block-buffer block-padding block2
+        blocking borsh borsh-derive brotli brotli-decompressor bs58 bstr bumpalo bytecheck
+        bytecheck_derive bytecount bytemuck bytemuck_derive byteorder byteorder-lite bytes
+        bytes-utils bytesize bytestring bzip2 bzip2-sys camino cargo-platform cargo_metadata
+        cast castaway cbc cbindgen cc cesu8 cexpr cfg-expr cfg-if cfg_aliases chacha20
+        chacha20poly1305 chrono chrono-tz chrono-tz-build ciborium ciborium-io ciborium-ll
+        cipher clang-sys clap clap_builder clap_complete clap_derive clap_lex cmake cmov
+        codespan-reporting color_quant colorchoice colored combine comfy-table compact_str
+        compression-codecs compression-core concurrent-queue config console const-oid
+        const-random const-random-macro const_format const_format_proc_macros constant_time_eq
+        convert_case cookie cookie_store core-foundation core-foundation-sys cpp_demangle
+        cpufeatures crc crc-catalog crc32c crc32fast criterion criterion-plot critical-section
+        crossbeam crossbeam-channel crossbeam-deque crossbeam-epoch crossbeam-queue
+        crossbeam-utils crossterm crossterm_winapi crunchy crypto-bigint crypto-common
+        crypto-mac cssparser csv csv-core ctor ctr ctrlc ctutils curve25519-dalek
+        curve25519-dalek-derive darling darling_core darling_macro dashmap data-encoding
+        deadpool deadpool-runtime debugid der der-parser deranged derivative derive_arbitrary
+        derive_builder derive_builder_core derive_builder_macro derive_more derive_more-impl
+        dialoguer diff difflib digest dirs dirs-next dirs-sys dirs-sys-next displaydoc dlv-list
+        doc-comment document-features dotenvy downcast downcast-rs dtoa dtoa-short dunce
+        dyn-clone ecdsa ed25519 ed25519-dalek educe either elliptic-curve embedded-io ena
+        encode_unicode encoding_rs endian-type enum-as-inner enum-ordinalize
+        enum-ordinalize-derive enum_dispatch enumflags2 enumflags2_derive env_filter env_logger
+        equator equator-macro equivalent erased-serde errno etcetera event-listener
+        event-listener-strategy eyre fallible-iterator fallible-streaming-iterator fancy-regex
+        fastrand fdeflate ff fiat-crypto filetime find-msvc-tools fixedbitset flatbuffers flate2
+        float-cmp fluent-uri flume fnv foldhash foreign-types foreign-types-shared
+        form_urlencoded fraction fragile fs-err fs2 fs_extra fsevent-sys funty futures
+        futures-channel futures-core futures-executor futures-intrusive futures-io futures-lite
+        futures-macro futures-sink futures-task futures-timer futures-util fxhash generic-array
+        gethostname getopts getrandom ghash gif gimli git2 glam glob globset globwalk
+        gloo-timers governor group h2 half handlebars hash32 hashbrown hashlink hdrhistogram
+        headers headers-core heapless heck hermit-abi hex hickory-proto hickory-resolver hkdf
+        hmac home hostname html5ever http http-body http-body-util http-range-header httparse
+        httpdate humantime hybrid-array hyper hyper-rustls hyper-timeout hyper-tls hyper-util
+        iana-time-zone iana-time-zone-haiku icu_collections icu_locale_core icu_locid
+        icu_locid_transform icu_locid_transform_data icu_normalizer icu_normalizer_data
+        icu_properties icu_properties_data icu_provider icu_provider_macros id-arena ident_case
+        idna idna_adapter ignore image image-webp indenter indexmap indicatif indoc infer
+        inotify inotify-sys inout insta instant integer-encoding inventory io-lifetimes ipnet
+        ipnetwork iri-string is-terminal is_terminal_polyfill itertools itoa jiff jiff-static
+        jni jni-sys jobserver jpeg-decoder js-sys json-patch json5 jsonpath-rust jsonptr
+        jsonschema jsonwebtoken k256 k8s-openapi keccak kv-log-macro lalrpop-util language-tags
+        lazy_static lazycell leb128fmt lexical-core lexical-parse-float lexical-parse-integer
+        lexical-util lexical-write-float lexical-write-integer libc libgit2-sys libloading libm
+        libredox libsqlite3-sys libz-sys linked-hash-map linux-raw-sys litemap litrs lock_api
+        log logos logos-derive lru lru-cache lru-slab lz4-sys lz4_flex maplit markup5ever
+        match_cfg matchers matches matchit matrixmultiply md-5 md5 memchr memmap2 memoffset
+        metrics metrics-util mime mime_guess minimal-lexical miniz_oxide mio mockall
+        mockall_derive moka moxcms multer multimap nalgebra native-tls ndarray
+        new_debug_unreachable nibble_vec nix nohash-hasher nom normalize-line-endings notify
+        ntapi nu-ansi-term num num-bigint num-bigint-dig num-complex num-conv num-derive
+        num-integer num-iter num-rational num-traits num_cpus num_enum num_enum_derive
+        num_threads number_prefix objc2 objc2-core-foundation objc2-encode objc2-foundation
+        object object_store oid-registry once_cell once_cell_polyfill oorandom opaque-debug
+        openssl openssl-macros openssl-probe openssl-src openssl-sys opentelemetry
+        opentelemetry-http opentelemetry-otlp opentelemetry-proto
+        opentelemetry-semantic-conventions opentelemetry_sdk option-ext ordered-float
+        ordered-multimap os_pipe os_str_bytes ouroboros ouroboros_macro outref overload
+        owo-colors p256 p384 parking parking_lot parking_lot_core parquet parse-zoneinfo
+        password-hash paste pastey pathdiff pbkdf2 peeking_take_while pem pem-rfc7468
+        percent-encoding pest pest_derive pest_generator pest_meta petgraph phf phf_codegen
+        phf_generator phf_macros phf_shared pin-project pin-project-internal pin-project-lite
+        pin-utils piper pkcs1 pkcs8 pkg-config plain plotters plotters-backend plotters-svg png
+        polling poly1305 polyval portable-atomic portable-atomic-util potential_utf powerfmt
+        ppv-lite86 precomputed-hash predicates predicates-core predicates-tree pretty_assertions
+        prettyplease primeorder proc-macro-crate proc-macro-error proc-macro-error-attr
+        proc-macro-error-attr2 proc-macro-error2 proc-macro-hack proc-macro2
+        proc-macro2-diagnostics procfs prometheus proptest prost prost-build prost-derive
+        prost-reflect prost-types protobuf psm ptr_meta ptr_meta_derive pulldown-cmark pxfm pyo3
+        pyo3-build-config pyo3-ffi pyo3-macros pyo3-macros-backend quanta quick-error quick-xml
+        quinn quinn-proto quinn-udp quote r-efi radium radix_trie rand rand_chacha rand_core
+        rand_distr rand_hc rand_pcg rand_xorshift rand_xoshiro raw-cpuid raw-window-handle
+        rawpointer rayon rayon-core rcgen redis redox_syscall redox_users ref-cast ref-cast-impl
+        regex regex-automata regex-lite regex-syntax relative-path remove_dir_all rend reqwest
+        reqwest-middleware resolv-conf rfc6979 rgb ring rkyv rkyv_derive rmp rmp-serde ron
+        roxmltree rsa rstest rstest_macros rusqlite rust-ini rust_decimal rustc-demangle
+        rustc-hash rustc_version rusticata-macros rustix rustls rustls-native-certs
+        rustls-pemfile rustls-pki-types rustls-platform-verifier rustls-webpki rustversion
+        rusty-fork ryu salsa20 same-file scc schannel schemars schemars_derive scoped-tls
+        scopeguard scroll sct sdd seahash sec1 secp256k1 secp256k1-sys secrecy
+        security-framework security-framework-sys selectors semver semver-parser seq-macro serde
+        serde-untagged serde-value serde-wasm-bindgen serde_bytes serde_cbor serde_core
+        serde_derive serde_derive_internals serde_json serde_path_to_error serde_qs serde_repr
+        serde_spanned serde_urlencoded serde_with serde_with_macros serde_yaml serial_test
+        serial_test_derive sha-1 sha1 sha1_smol sha2 sha3 sharded-slab shell-words shlex
+        signal-hook signal-hook-mio signal-hook-registry signature simd-adler32 simdutf8 similar
+        simple_asn1 siphasher sketches-ddsketch slab slotmap smallvec smawk smol_str snafu
+        snafu-derive snap socket2 spin spki sqlparser sqlx sqlx-core sqlx-macros
+        sqlx-macros-core sqlx-mysql sqlx-postgres sqlx-sqlite stable_deref_trait stacker
+        static_assertions string_cache string_cache_codegen stringprep strsim structopt
+        structopt-derive strum strum_macros subtle syn sync_wrapper synstructure sysinfo
+        system-configuration system-configuration-sys tagptr take_mut tap tar target-lexicon
+        tempfile tendril term termcolor terminal_size termtree textwrap thiserror thiserror-impl
+        thread_local threadpool thrift tiff tikv-jemalloc-sys tikv-jemallocator time time-core
+        time-macros tiny-keccak tinystr tinytemplate tinyvec tinyvec_macros tokio
+        tokio-io-timeout tokio-macros tokio-native-tls tokio-retry tokio-rustls tokio-stream
+        tokio-test tokio-tungstenite tokio-util toml toml_datetime toml_edit toml_parser
+        toml_write toml_writer tonic tonic-build tonic-prost tower tower-http tower-layer
+        tower-service tracing tracing-appender tracing-attributes tracing-core tracing-futures
+        tracing-log tracing-opentelemetry tracing-serde tracing-subscriber triomphe try-lock
+        ttf-parser tungstenite twox-hash typed-arena typed-builder typed-builder-macro typeid
+        typenum ucd-trie unarray unicase unicode-bidi unicode-ident unicode-linebreak
+        unicode-normalization unicode-properties unicode-segmentation unicode-width unicode-xid
+        unicode_categories unindent universal-hash unsafe-libyaml untrusted ureq ureq-proto url
+        urlencoding utf-8 utf16_iter utf8_iter utf8parse uuid valuable value-bag vcpkg vec_map
+        version-compare version_check void vsimd vte wait-timeout waker-fn walkdir want wasi
+        wasip2 wasip3 wasite wasm-bindgen wasm-bindgen-backend wasm-bindgen-futures
+        wasm-bindgen-macro wasm-bindgen-macro-support wasm-bindgen-shared wasm-encoder
+        wasm-metadata wasm-streams wasmparser web-sys web-time webpki webpki-root-certs
+        webpki-roots weezl which whoami widestring winapi winapi-i686-pc-windows-gnu winapi-util
+        winapi-x86_64-pc-windows-gnu windows windows-collections windows-core windows-future
+        windows-implement windows-interface windows-link windows-numerics windows-registry
+        windows-result windows-strings windows-sys windows-targets windows-threading
+        windows_aarch64_gnullvm windows_aarch64_msvc windows_i686_gnu windows_i686_gnullvm
+        windows_i686_msvc windows_x86_64_gnu windows_x86_64_gnullvm windows_x86_64_msvc winnow
+        winreg wiremock wit-bindgen wit-bindgen-core wit-bindgen-rt wit-bindgen-rust
+        wit-bindgen-rust-macro wit-component wit-parser write16 writeable wyz x509-parser xattr
+        xml-rs xmlparser xxhash-rust yaml-rust yansi yasna yoke yoke-derive zbus zbus_macros
+        zbus_names zerocopy zerocopy-derive zerofrom zerofrom-derive zeroize zeroize_derive
+        zerotrie zerovec zerovec-derive zip zlib-rs zmij zopfli zstd zstd-safe zstd-sys
+        zune-core zune-jpeg zvariant zvariant_derive zvariant_utils""",
+}
+for _eco, _names in GENERATED_POPULAR.items():
+    POPULAR[_eco] |= set(_names.split())
 
 
 if __name__ == "__main__":

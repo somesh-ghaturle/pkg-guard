@@ -113,6 +113,7 @@ still checked against the public registry. Tarball and git URLs are not checked.
 
 ```bash
 python3 -m unittest -v
+python3 scripts/gen_popular.py   # refresh the top-1000 npm/PyPI/crates lists in pkg_guard.py
 ```
 
 MIT licensed.

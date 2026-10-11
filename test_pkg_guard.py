@@ -221,6 +221,11 @@ class CheckTest(unittest.TestCase):
         with mock.patch.object(pg, "fetch", return_value=None):
             self.assertIsNone(pg.registry_info("go", "github.com/nope/nope/a/b"))
 
+    def test_generated_popular_names_are_whole(self):
+        for eco in ("npm", "pypi", "crates"):
+            for n in pg.GENERATED_POPULAR[eco].split():
+                self.assertEqual(pg._clean(eco, n), n)
+
     def test_npm_install_scripts(self):
         meta = {"time": {"created": "2015-01-01T00:00:00Z"}, "dist-tags": {"latest": "2.0.0"},
                 "versions": {"1.0.0": {"scripts": {"postinstall": "x"}},

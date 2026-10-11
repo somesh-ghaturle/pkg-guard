@@ -59,7 +59,8 @@ Ordered by how much risk each one removes.
 2. **Install-script signal (npm)** — latest version has `preinstall/install/postinstall`
    and the package is young or low-download → deny with that reason. ✅ (`gypfile` counts as `install`)
 3. **Generated popular list** — script that pulls top-N names per registry into
-   `popular.txt`-style data embedded in the file; improves typosquat recall.
+   `popular.txt`-style data embedded in the file; improves typosquat recall. ✅
+   (`scripts/gen_popular.py`: top 1000 npm/pypi/crates; gems and go have no ranking API)
 4. **Release v0.3.0.**
 
 ## Maybe later (needs evidence it's worth it)
