@@ -3,6 +3,7 @@
 
 Usage:
   pkg_guard.py check "<shell command>"   exit 1 and print reasons if blocked
+  pkg_guard.py scan [lockfile ...]       check every package pinned in lockfiles (default: ./*)
   pkg_guard.py hook                      PreToolUse (Claude Code, Codex) / BeforeTool (Gemini CLI)
                                          hook: JSON on stdin
 """
@@ -505,6 +506,23 @@ def _days_since(ts):
     return (datetime.now(timezone.utc) - dt).days
 
 
+_npm_downloads = {}  # name -> weekly downloads, prefetched in bulk by scan()
+
+
+def _npm_prefetch(names):
+    """Fill _npm_downloads with bulk queries (128 unscoped names per request)."""
+    plain = sorted(n for n in names if not n.startswith("@"))
+    for i in range(0, len(plain), 128):
+        try:
+            data = fetch_json("https://api.npmjs.org/downloads/point/last-week/" + ",".join(plain[i:i + 128]))
+        except Exception:
+            continue  # per-package lookups will retry
+        data = data or {}
+        for v in [data] if "package" in data else data.values():  # one name answers unwrapped
+            if isinstance(v, dict) and isinstance(v.get("downloads"), int):
+                _npm_downloads[v.get("package")] = v["downloads"]
+
+
 def registry_info(eco, name):
     """Return None if missing, else {"age_days": int|None, "downloads": int|None}."""
     q = urllib.parse.quote(name, safe="@")
@@ -512,11 +530,17 @@ def registry_info(eco, name):
         meta = fetch_json("https://registry.npmjs.org/" + q)
         if meta is None:
             return None
-        dl = fetch_json("https://api.npmjs.org/downloads/point/last-week/" + name) or {}
+        dls = _npm_downloads.get(name)
+        if dls is None:
+            try:
+                dls = (fetch_json("https://api.npmjs.org/downloads/point/last-week/" + name) or {}).get("downloads")
+            except Exception:  # the downloads API rate-limits hard; still check existence and age
+                if os.environ.get("PKG_GUARD_FAIL_CLOSED") == "1":
+                    raise
         latest = meta.get("versions", {}).get(meta.get("dist-tags", {}).get("latest"), {})
         scripts = set(latest.get("scripts") or {}) | ({"install"} if latest.get("gypfile") else set())
         return {"age_days": _days_since(meta.get("time", {}).get("created")),
-                "downloads": dl.get("downloads"),
+                "downloads": dls,
                 "install_scripts": sorted(INSTALL_HOOKS & scripts)}
     if eco == "pypi":
         meta = fetch_json("https://pypi.org/pypi/%s/json" % q)
@@ -795,6 +819,87 @@ def manifest_deps(path, text):
     return "pypi", {n for n in (_clean("pypi", s) for s in specs) if n}
 
 
+def _npm_lock(data):
+    """Registry packages in package-lock.json / npm-shrinkwrap.json (lockfile v1-v3)."""
+    out = set()
+
+    def add(name, e):
+        if not isinstance(e, dict) or e.get("link") or e.get("bundled"):
+            return
+        res = str(e.get("resolved") or e.get("version") or "")
+        if re.match(r"^(git|file:|link:|github:)", res) or res.startswith("http") and "/-/" not in res:
+            return  # git, local, or plain tarball URL; registry tarballs (any mirror) have /-/
+        alias = str(e.get("version", "")).startswith("npm:") and e["version"][4:].rsplit("@", 1)[0]
+        n = _clean("npm", e.get("name") or alias or name)  # the real package behind an alias
+        if n:
+            out.add(n)
+
+    for key, e in (data.get("packages") or {}).items():
+        if "node_modules/" in key:
+            add(key.rsplit("node_modules/", 1)[1], e)
+
+    def walk(deps):  # v1: nested "dependencies"
+        for name, e in (deps or {}).items():
+            add(name, e)
+            walk(e.get("dependencies") if isinstance(e, dict) else None)
+    if not data.get("packages"):
+        walk(data.get("dependencies"))
+    return out
+
+
+def _toml_lock(data, eco, public):
+    """[[package]] names in uv.lock / poetry.lock / Cargo.lock that come from the public registry."""
+    out = set()
+    for p in data.get("package") or []:
+        src = p.get("source")
+        if eco == "pypi" and isinstance(src, dict):  # uv: {registry = ...} vs git/path/editable/virtual
+            ok = "registry" in src and public(str(src["registry"]))
+        elif eco == "pypi":  # poetry: no source = PyPI
+            ok = src is None
+        else:  # cargo: no source = workspace member
+            ok = isinstance(src, str) and public(src)
+        if ok and p.get("name"):
+            out.add(_clean(eco, p["name"]))
+    return out - {None}
+
+
+def lockfile_deps(path, text):
+    """Return (ecosystem, {names}) pinned in a lockfile, else None."""
+    base = os.path.basename(path).lower()
+    if base in ("package-lock.json", "npm-shrinkwrap.json"):
+        return "npm", _npm_lock(json.loads(text))
+    if base in ("uv.lock", "poetry.lock"):
+        return "pypi", _toml_lock(_toml(text), "pypi", lambda r: "pypi.org" in r)
+    if base == "cargo.lock":
+        return "crates", _toml_lock(_toml(text), "crates", lambda r: "crates.io" in r)
+    return None
+
+
+LOCKFILES = ("package-lock.json", "npm-shrinkwrap.json", "uv.lock", "poetry.lock", "Cargo.lock")
+
+
+def scan(paths):
+    """Return block reasons for every package pinned in the given lockfiles."""
+    pkgs, reasons = set(), []
+    for path in paths:
+        text = _read(path)
+        try:
+            found = lockfile_deps(path, text) if text is not None else None
+        except Exception as e:
+            reasons.append("%s: does not parse (%s)" % (path, e))
+            continue
+        if found is None:
+            reasons.append("%s: not a lockfile pkg-guard can read" % path)
+        elif not tomllib and path.lower().endswith(".lock"):
+            reasons.append("%s: needs Python 3.11+ (tomllib)" % path)
+        else:
+            pkgs |= {(found[0], n) for n in found[1]}
+    _npm_prefetch([n for e, n in pkgs if e == "npm" and n not in POPULAR["npm"]])
+    # ponytail: 8 parallel lookups; crates.io asks crawlers for 1/s, throttle if big Cargo.lock scans get blocked
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        return reasons + [r for r in ex.map(lambda p: check(*p), sorted(pkgs)) if r]
+
+
 def _edited_text(tool, inp, old):
     """File content after a Write/Edit/MultiEdit, or None if the edit can't apply."""
     if tool == "Write":
@@ -1034,6 +1139,15 @@ def main(argv=None):
         return 0
     if argv[:1] == ["check"] and len(argv) > 1:
         reasons = check_command(" ".join(argv[1:]))
+        for r in reasons:
+            print("BLOCK " + r)
+        return 1 if reasons else 0
+    if argv[:1] == ["scan"]:
+        paths = argv[1:] or [f for f in LOCKFILES if os.path.exists(f)]
+        if not paths:
+            print("pkg-guard: no lockfile here (%s)" % ", ".join(LOCKFILES), file=sys.stderr)
+            return 2
+        reasons = scan(paths)
         for r in reasons:
             print("BLOCK " + r)
         return 1 if reasons else 0

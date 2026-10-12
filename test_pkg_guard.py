@@ -338,6 +338,93 @@ class ManifestTest(unittest.TestCase):
                 self.assertIsNotNone(pg.hook_output({"tool_name": "Write", "tool_input": write}))
 
 
+class LockfileTest(unittest.TestCase):
+    def test_npm_lock(self):
+        v3 = {"packages": {
+            "": {"name": "app"},
+            "node_modules/lodash": {"version": "4.17.21", "resolved": "https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz"},
+            "node_modules/a/node_modules/@scope/evil": {"version": "1.0.0"},
+            "node_modules/alias": {"name": "real-pkg", "version": "1.0.0"},
+            "node_modules/mirror": {"resolved": "https://npm.corp.example/mirror/-/mirror-1.0.0.tgz"},
+            "node_modules/ws-member": {"resolved": "packages/ws-member", "link": True},
+            "node_modules/gitdep": {"resolved": "git+ssh://git@github.com/x/y.git#abc"},
+            "node_modules/tarball": {"resolved": "https://example.com/t.tgz"},
+            "packages/ws-member": {"name": "ws-member"}}}
+        self.assertEqual(pg.lockfile_deps("package-lock.json", json.dumps(v3)),
+                         ("npm", {"lodash", "@scope/evil", "real-pkg", "mirror"}))
+        v1 = {"dependencies": {"a": {"version": "1.0.0", "dependencies": {"b": {"version": "npm:evil@2.0.0"}}},
+                               "c": {"version": "file:../c"}}}
+        self.assertEqual(pg.lockfile_deps("npm-shrinkwrap.json", json.dumps(v1)), ("npm", {"a", "evil"}))
+        self.assertIsNone(pg.lockfile_deps("yarn.lock", ""))
+
+    @unittest.skipIf(pg.tomllib is None, "TOML lockfiles need Python 3.11+")
+    def test_toml_locks(self):
+        uv = """
+[[package]]
+name = "Evil_Pkg"
+source = { registry = "https://pypi.org/simple" }
+[[package]]
+name = "app"
+source = { editable = "." }
+[[package]]
+name = "internal"
+source = { registry = "https://pypi.corp.example/simple" }
+"""
+        self.assertEqual(pg.lockfile_deps("uv.lock", uv), ("pypi", {"evil-pkg"}))
+        poetry = '[[package]]\nname = "requests"\n[[package]]\nname = "g"\n[package.source]\ntype = "git"\n'
+        self.assertEqual(pg.lockfile_deps("poetry.lock", poetry), ("pypi", {"requests"}))
+        cargo = """
+[[package]]
+name = "serde"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+[[package]]
+name = "evil"
+source = "sparse+https://index.crates.io/"
+[[package]]
+name = "myapp"
+[[package]]
+name = "forked"
+source = "git+https://github.com/x/forked#abc"
+"""
+        self.assertEqual(pg.lockfile_deps("Cargo.lock", cargo), ("crates", {"serde", "evil"}))
+
+    def test_scan(self):
+        import os, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            lock = os.path.join(d, "package-lock.json")
+            with open(lock, "w") as f:
+                json.dump({"packages": {"node_modules/lodash": {}, "node_modules/lodahs": {}}}, f)
+            bad = os.path.join(d, "package.json")
+            with open(bad, "w") as f:
+                f.write("{}")
+            with mock.patch.object(pg, "_npm_prefetch"), \
+                    mock.patch.object(pg, "registry_info", return_value={"age_days": 10, "downloads": 5}):
+                r = pg.scan([lock, bad])
+        self.assertEqual(len(r), 2)
+        self.assertIn("not a lockfile", r[0])
+        self.assertIn("lodahs", r[1])
+
+    def test_npm_bulk_downloads(self):
+        bulk = {"left-pad": {"downloads": 900, "package": "left-pad"}, "nope": None}
+        with mock.patch.object(pg, "fetch_json", return_value=bulk) as f, mock.patch.dict(pg._npm_downloads, clear=True):
+            pg._npm_prefetch(["left-pad", "nope", "@s/x"])
+            self.assertEqual(pg._npm_downloads, {"left-pad": 900})
+        self.assertTrue(f.call_args[0][0].endswith("/last-week/left-pad,nope"))
+
+    def test_npm_downloads_rate_limit_still_checks_age(self):
+        meta = {"time": {"created": "2099-01-01T00:00:00Z"}}
+
+        def fake(url):
+            if "api.npmjs.org" in url:
+                raise OSError("429")
+            return meta
+        with mock.patch.object(pg, "fetch_json", side_effect=fake):
+            info = pg.registry_info("npm", "fresh-lib")
+            self.assertIsNone(info["downloads"])
+            with mock.patch.dict("os.environ", {"PKG_GUARD_FAIL_CLOSED": "1"}):
+                self.assertRaises(OSError, pg.registry_info, "npm", "fresh-lib")
+
+
 class CacheTest(unittest.TestCase):
     def test_caches_only_passes(self):
         import os, tempfile
