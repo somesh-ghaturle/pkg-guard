@@ -24,8 +24,13 @@ runs attacker code on the user's machine.
 ## Verify a command without running it
 
 ```bash
-python3 /path/to/pkg_guard.py check "npm install some-lib"   # exit 1 = blocked, prints why
+pkg-guard check "npm install some-lib"   # exit 1 = blocked, prints why
+pkg-guard scan                           # check every package in this repo's lockfiles
 ```
+
+Run `pkg-guard scan` once when you start work in an existing repo, and tell the user
+about anything it blocks before installing on top of it. (Not installed? It's
+`pipx install slopsquat-guard`; inside the plugin it's `python3 "${CLAUDE_PLUGIN_ROOT}/pkg_guard.py"`.)
 
 ## When pkg-guard blocks an install
 

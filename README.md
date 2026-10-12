@@ -20,11 +20,11 @@ The agent sees the reason and fixes its own command.
 - **Single file, Python stdlib only.** The guard adds no dependencies of its own. Read it in five minutes.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/architecture-dark.svg">
-  <img alt="pkg-guard architecture: the agent's tool call goes through the hook adapter and parser to the package checks, which consult the pass cache, the popular lists and the public registries. The CLI's check and scan commands feed the same parser." src="docs/architecture-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/somesh-ghaturle/pkg-guard/main/docs/architecture-dark.svg">
+  <img alt="pkg-guard architecture: the agent's tool call goes through the hook adapter and parser to the package checks, which consult the pass cache, the popular lists and the public registries. The CLI's check and scan commands feed the same parser." src="https://raw.githubusercontent.com/somesh-ghaturle/pkg-guard/main/docs/architecture-light.svg">
 </picture>
 
-The interactive version (zoom, search, trace a path) is [`docs/architecture.html`](docs/architecture.html); download and open it in a browser.
+The interactive version (zoom, search, trace a path) is [`docs/architecture.html`](https://github.com/somesh-ghaturle/pkg-guard/blob/main/docs/architecture.html); download and open it in a browser.
 
 ## What gets blocked
 
@@ -56,8 +56,7 @@ are checked before the edit is written, so a later bare `npm install` can't snea
 ### Codex
 
 ```bash
-git clone https://github.com/somesh-ghaturle/pkg-guard ~/.pkg-guard
-mkdir -p ~/.codex/skills && cp -r ~/.pkg-guard/skills/pkg-guard ~/.codex/skills/
+pipx install slopsquat-guard
 ```
 
 Then add the hook to `~/.codex/config.toml`, or use [`examples/codex-hooks.json`](examples/codex-hooks.json) as `~/.codex/hooks.json`:
@@ -68,21 +67,26 @@ matcher = "Bash|apply_patch"
 
 [[hooks.PreToolUse.hooks]]
 type = "command"
-command = "python3 ~/.pkg-guard/pkg_guard.py hook"
+command = "pkg-guard hook"
 timeout = 20
 ```
+
+Optionally give Codex the skill too, so it picks safer packages up front:
+`git clone https://github.com/somesh-ghaturle/pkg-guard /tmp/pkg-guard && mkdir -p ~/.codex/skills && cp -r /tmp/pkg-guard/skills/pkg-guard ~/.codex/skills/`
 
 ### Gemini CLI
 
 ```bash
-git clone https://github.com/somesh-ghaturle/pkg-guard ~/.pkg-guard
+pipx install slopsquat-guard
 ```
 
-Then merge [`examples/gemini-settings.json`](examples/gemini-settings.json) into `~/.gemini/settings.json`, with the command set to `python3 ~/.pkg-guard/pkg_guard.py hook`. It checks `run_shell_command` plus `write_file`/`replace` edits to manifests.
+Then merge [`examples/gemini-settings.json`](examples/gemini-settings.json) into `~/.gemini/settings.json`. It checks `run_shell_command` plus `write_file`/`replace` edits to manifests.
 
 ### Claude Code without the plugin
 
-Add [`examples/claude-settings.json`](examples/claude-settings.json) to `~/.claude/settings.json`, using your own path to the script.
+Run `pipx install slopsquat-guard`, then add [`examples/claude-settings.json`](examples/claude-settings.json) to `~/.claude/settings.json`.
+
+If an agent can't find `pkg-guard`, use the full path that `which pkg-guard` prints (pipx installs to `~/.local/bin`).
 
 ### As a CLI
 
