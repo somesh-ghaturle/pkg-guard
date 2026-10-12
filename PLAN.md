@@ -69,11 +69,12 @@ Ordered by how much risk each one removes.
    `npm-shrinkwrap.json`, `uv.lock`, `poetry.lock`, `Cargo.lock`. npm download counts
    fetched in bulk (128 per request); a rate-limited downloads lookup no longer skips
    the existence/age checks. ✅
-2. **Release v0.4.0.**
+2. **More lockfiles** — `yarn.lock` (classic + Berry), `pnpm-lock.yaml` (v5-v9),
+   `Gemfile.lock` (rubygems.org GEM sections), `go.sum` (downloaded modules only). ✅
+3. **Release v0.4.0.**
 
 ## Maybe later (needs evidence it's worth it)
 
 - Maintainer-change signal (npm `maintainers` diff between recent versions).
 - Dependency-confusion check: package installed via custom `--index-url` also exists
   on the public registry under the same name.
-- More lockfiles for `scan`: `yarn.lock`, `pnpm-lock.yaml`, `Gemfile.lock`, `go.sum`.

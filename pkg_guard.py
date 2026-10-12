@@ -826,9 +826,8 @@ def _npm_lock(data):
     def add(name, e):
         if not isinstance(e, dict) or e.get("link") or e.get("bundled"):
             return
-        res = str(e.get("resolved") or e.get("version") or "")
-        if re.match(r"^(git|file:|link:|github:)", res) or res.startswith("http") and "/-/" not in res:
-            return  # git, local, or plain tarball URL; registry tarballs (any mirror) have /-/
+        if not _registry_tarball(str(e.get("resolved") or e.get("version") or "")):
+            return
         alias = str(e.get("version", "")).startswith("npm:") and e["version"][4:].rsplit("@", 1)[0]
         n = _clean("npm", e.get("name") or alias or name)  # the real package behind an alias
         if n:
@@ -863,6 +862,91 @@ def _toml_lock(data, eco, public):
     return out - {None}
 
 
+def _npm_spec_name(spec):
+    """Package name from `name@range` (scope-aware); follows `alias@npm:real@range`."""
+    spec = spec.strip().strip("'\"")
+    if "@npm:" in spec:
+        spec = spec.split("@npm:", 1)[1]
+    at = spec.find("@", 1)  # skip a leading scope @
+    return _clean("npm", spec[:at] if at > 0 else spec)
+
+
+def _registry_tarball(res):
+    """False for git/file/link sources and plain tarball URLs; registry tarballs have /-/."""
+    return not (re.match(r"^(git|file:|link:|github:|workspace:|patch:|portal:|exec:)", res) or
+                "://" in res and "/-/" not in res)
+
+
+def _yarn_lock(text):
+    """yarn.lock v1 (classic) and Berry: one block per resolved package."""
+    out = set()
+    for block in re.split(r"\n(?=\S)", text):
+        lines = block.split("\n")
+        head = lines[0].rstrip()
+        if head.startswith("#") or not head.endswith(":") or head.startswith("__metadata"):
+            continue
+        body = "\n".join(lines[1:])
+        m = re.search(r'^\s+resolution:\s*"?([^"\n]+)"?$', body, re.M)  # Berry
+        if m:
+            name, _, proto = m.group(1).rpartition("@")
+            if proto.startswith("npm:"):
+                out.add(_clean("npm", name))
+            continue
+        m = re.search(r'^\s+resolved\s+"?([^"\s]+)"?', body, re.M)  # classic
+        if m and not _registry_tarball(m.group(1)):
+            continue
+        out.add(_npm_spec_name(head[:-1].split(",")[0]))
+    return out - {None}
+
+
+def _pnpm_lock(text):
+    """pnpm-lock.yaml v5-v9: keys of the `packages:` section."""
+    out, section, name = set(), None, None
+    for ln in text.split("\n"):
+        if re.match(r"^\S", ln):
+            section = ln.rstrip()
+            continue
+        if section != "packages:":
+            continue
+        m = re.match(r"^  (\S.*):\s*$", ln)
+        if m:
+            key = re.sub(r"\(.*$", "", m.group(1).strip("'\"")).lstrip("/")  # drop (peer) suffixes
+            if re.match(r"^(@[^/]+/)?[^@/]+/\d", key):  # v5: /name/1.2.3_peer
+                name = _clean("npm", key.rsplit("/", 1)[0])
+            else:  # v6+: name@1.2.3, @scope/name@1.2.3
+                at = key.rfind("@")
+                ver = key[at + 1:]
+                name = _clean("npm", key[:at]) if at > 0 and not re.search(r"[:/]", ver) else None
+            if name:
+                out.add(name)
+        elif name and re.match(r"^    resolution:", ln) and (
+                "type:" in ln or "tarball:" in ln and not _registry_tarball(ln.split("tarball:", 1)[1].strip(" }"))):
+            out.discard(name)  # git, directory, or plain tarball
+    return out
+
+
+def _gemfile_lock(text):
+    """Gemfile.lock: specs under GEM sections that point at rubygems.org."""
+    out = set()
+    for sec in re.split(r"\n(?=\S)", text):
+        if not sec.startswith("GEM") or not re.search(r"^  remote: https?://(index\.)?rubygems\.org/?$", sec, re.M):
+            continue
+        out |= set(re.findall(r"^    ([^\s(]+) \(", sec, re.M))  # 6-space lines are their dependencies
+    return out
+
+
+def _go_sum(text):
+    """go.sum: modules whose source was downloaded (lines without /go.mod)."""
+    out = set()
+    for ln in text.split("\n"):
+        parts = ln.split()
+        if len(parts) == 3 and not parts[1].endswith("/go.mod"):
+            name = _clean("go", parts[0])
+            if name:
+                out.add(name)
+    return out
+
+
 def lockfile_deps(path, text):
     """Return (ecosystem, {names}) pinned in a lockfile, else None."""
     base = os.path.basename(path).lower()
@@ -872,10 +956,19 @@ def lockfile_deps(path, text):
         return "pypi", _toml_lock(_toml(text), "pypi", lambda r: "pypi.org" in r)
     if base == "cargo.lock":
         return "crates", _toml_lock(_toml(text), "crates", lambda r: "crates.io" in r)
+    if base == "yarn.lock":
+        return "npm", _yarn_lock(text)
+    if base == "pnpm-lock.yaml":
+        return "npm", _pnpm_lock(text)
+    if base == "gemfile.lock":
+        return "gems", _gemfile_lock(text)
+    if base == "go.sum":
+        return "go", _go_sum(text)
     return None
 
 
-LOCKFILES = ("package-lock.json", "npm-shrinkwrap.json", "uv.lock", "poetry.lock", "Cargo.lock")
+LOCKFILES = ("package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml", "uv.lock",
+             "poetry.lock", "Cargo.lock", "Gemfile.lock", "go.sum")
 
 
 def scan(paths):
@@ -890,7 +983,7 @@ def scan(paths):
             continue
         if found is None:
             reasons.append("%s: not a lockfile pkg-guard can read" % path)
-        elif not tomllib and path.lower().endswith(".lock"):
+        elif not tomllib and os.path.basename(path).lower() in ("uv.lock", "poetry.lock", "cargo.lock"):
             reasons.append("%s: needs Python 3.11+ (tomllib)" % path)
         else:
             pkgs |= {(found[0], n) for n in found[1]}

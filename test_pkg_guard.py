@@ -355,7 +355,110 @@ class LockfileTest(unittest.TestCase):
         v1 = {"dependencies": {"a": {"version": "1.0.0", "dependencies": {"b": {"version": "npm:evil@2.0.0"}}},
                                "c": {"version": "file:../c"}}}
         self.assertEqual(pg.lockfile_deps("npm-shrinkwrap.json", json.dumps(v1)), ("npm", {"a", "evil"}))
-        self.assertIsNone(pg.lockfile_deps("yarn.lock", ""))
+        self.assertIsNone(pg.lockfile_deps("bun.lockb", ""))
+
+    def test_text_locks(self):
+        classic = """# yarn lockfile v1
+
+
+"@scope/a@^1.0.0", "@scope/a@^1.1.0":
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/@scope/a/-/a-1.1.0.tgz#abc"
+
+lodahs@^4:
+  version "4.0.0"
+  resolved "https://pkgs.corp.example/npm/registry/lodahs/-/lodahs-4.0.0.tgz"
+
+"wrap-cjs@npm:wrap-ansi@^7.0.0":
+  version "7.0.0"
+
+gitdep@github:x/y:
+  version "1.0.0"
+  resolved "git+https://github.com/x/y.git#abc"
+
+tar@https://example.com/t.tgz:
+  version "1.0.0"
+  resolved "https://example.com/t.tgz"
+"""
+        self.assertEqual(pg.lockfile_deps("yarn.lock", classic), ("npm", {"@scope/a", "lodahs", "wrap-ansi"}))
+        berry = """__metadata:
+  version: 8
+
+"evil@npm:^1.0.0":
+  version: 1.0.0
+  resolution: "evil@npm:1.0.0"
+
+"@s/x@npm:2":
+  resolution: "@s/x@npm:2.0.0"
+
+"app@workspace:.":
+  resolution: "app@workspace:."
+
+"lodash@patch:lodash@npm%3A4.17.21#./p.patch":
+  resolution: "lodash@patch:lodash@npm%3A4.17.21#./p.patch::version=4.17.21"
+"""
+        self.assertEqual(pg.lockfile_deps("yarn.lock", berry), ("npm", {"evil", "@s/x"}))
+        pnpm = """lockfileVersion: '9.0'
+
+importers:
+  .:
+    dependencies:
+      notapkg:
+        specifier: ^1
+
+packages:
+
+  '@babel/core@7.0.0':
+    resolution: {integrity: sha512-x}
+
+  evil@1.0.0(react@18.0.0):
+    resolution: {integrity: sha512-y}
+
+  /old-style/2.0.0_react@18.0.0:
+    resolution: {integrity: sha512-z}
+
+  /@s/old/1.0.0:
+    resolution: {integrity: sha512-z}
+
+  gitdep@https://codeload.github.com/x/y/tar.gz/abc:
+    resolution: {tarball: https://codeload.github.com/x/y/tar.gz/abc}
+
+  local@file:../local:
+    resolution: {directory: ../local, type: directory}
+
+  mirrored@1.0.0:
+    resolution: {integrity: sha512-m, tarball: https://npm.corp.example/mirrored/-/mirrored-1.0.0.tgz}
+
+snapshots:
+
+  ignored@1.0.0: {}
+"""
+        self.assertEqual(pg.lockfile_deps("pnpm-lock.yaml", pnpm),
+                         ("npm", {"@babel/core", "evil", "old-style", "@s/old", "mirrored"}))
+        gemfile = """GIT
+  remote: https://github.com/x/forked.git
+  specs:
+    forked (1.0)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    rails (7.1.0)
+      actionpack (= 7.1.0)
+    evil-gem (0.1.0-x86_64-linux)
+
+GEM
+  remote: https://gems.corp.example/
+  specs:
+    internal (1.0)
+
+PLATFORMS
+  ruby
+"""
+        self.assertEqual(pg.lockfile_deps("Gemfile.lock", gemfile), ("gems", {"rails", "evil-gem"}))
+        gosum = ("github.com/evil/x v1.0.0 h1:abc=\ngithub.com/evil/x v1.0.0/go.mod h1:def=\n"
+                 "github.com/only/gomod v1.0.0/go.mod h1:ghi=\ngolang.org/x/net v0.1.0 h1:jkl=\n")
+        self.assertEqual(pg.lockfile_deps("go.sum", gosum), ("go", {"github.com/evil/x", "golang.org/x/net"}))
 
     @unittest.skipIf(pg.tomllib is None, "TOML lockfiles need Python 3.11+")
     def test_toml_locks(self):
