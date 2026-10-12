@@ -73,6 +73,12 @@ Ordered by how much risk each one removes.
    `Gemfile.lock` (rubygems.org GEM sections), `go.sum` (downloaded modules only). ✅
 3. **Release v0.4.0.** ✅ (2026-10-12)
 
+## v0.4.1 — first PyPI release
+
+- Published as `slopsquat-guard`: `pkg-guard` belongs to another project, and PyPI rejected
+  `slopguard` as too close to `slop-guard`. The command is still `pkg-guard`.
+  `.github/workflows/publish.yml` uploads on each GitHub Release via trusted publishing.
+
 ## Maybe later (needs evidence it's worth it)
 
 - Maintainer-change signal (npm `maintainers` diff between recent versions).

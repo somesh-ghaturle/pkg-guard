@@ -80,10 +80,12 @@ Add [`examples/claude-settings.json`](examples/claude-settings.json) to `~/.clau
 ### As a CLI
 
 ```bash
-pipx install git+https://github.com/somesh-ghaturle/pkg-guard
+pipx install slopsquat-guard             # the PyPI name; the command is pkg-guard
 pkg-guard check "npm install some-lib"   # exit 1 if blocked
 pkg-guard scan                           # check every package in ./package-lock.json, uv.lock, ...
 ```
+
+The PyPI package is **`slopsquat-guard`**. `pkg-guard` on PyPI is a different, unrelated project.
 
 `scan` reads `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock` (classic and Berry),
 `pnpm-lock.yaml`, `uv.lock`, `poetry.lock`, `Cargo.lock` (the TOML ones need Python 3.11+),
