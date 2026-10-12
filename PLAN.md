@@ -63,9 +63,17 @@ Ordered by how much risk each one removes.
    (`scripts/gen_popular.py`: top 1000 npm/pypi/crates; gems and go have no ranking API)
 4. **Release v0.3.0.** ✅ (2026-10-11)
 
+## v0.4 — audit what's already there
+
+1. **`pkg-guard scan`** — one-shot check of every registry package in `package-lock.json`,
+   `npm-shrinkwrap.json`, `uv.lock`, `poetry.lock`, `Cargo.lock`. npm download counts
+   fetched in bulk (128 per request); a rate-limited downloads lookup no longer skips
+   the existence/age checks. ✅
+2. **Release v0.4.0.**
+
 ## Maybe later (needs evidence it's worth it)
 
 - Maintainer-change signal (npm `maintainers` diff between recent versions).
 - Dependency-confusion check: package installed via custom `--index-url` also exists
   on the public registry under the same name.
-- Lockfile scanning (`package-lock.json`, `uv.lock`) as a one-shot `pkg-guard scan` CLI.
+- More lockfiles for `scan`: `yarn.lock`, `pnpm-lock.yaml`, `Gemfile.lock`, `go.sum`.

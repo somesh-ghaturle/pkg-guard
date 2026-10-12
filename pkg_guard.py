@@ -3,7 +3,7 @@
 
 Usage:
   pkg_guard.py check "<shell command>"   exit 1 and print reasons if blocked
-  pkg_guard.py scan [lockfile ...]       check every package pinned in lockfiles (default: ./*)
+  pkg_guard.py scan [lockfile ...]       check every package in lockfiles (default: those in .)
   pkg_guard.py hook                      PreToolUse (Claude Code, Codex) / BeforeTool (Gemini CLI)
                                          hook: JSON on stdin
 """
@@ -894,6 +894,7 @@ def scan(paths):
             reasons.append("%s: needs Python 3.11+ (tomllib)" % path)
         else:
             pkgs |= {(found[0], n) for n in found[1]}
+    print("pkg-guard: checking %d packages from %s" % (len(pkgs), ", ".join(paths)), file=sys.stderr)
     _npm_prefetch([n for e, n in pkgs if e == "npm" and n not in POPULAR["npm"]])
     # ponytail: 8 parallel lookups; crates.io asks crawlers for 1/s, throttle if big Cargo.lock scans get blocked
     with ThreadPoolExecutor(max_workers=8) as ex:

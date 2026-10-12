@@ -82,7 +82,13 @@ Add [`examples/claude-settings.json`](examples/claude-settings.json) to `~/.clau
 ```bash
 pipx install git+https://github.com/somesh-ghaturle/pkg-guard
 pkg-guard check "npm install some-lib"   # exit 1 if blocked
+pkg-guard scan                           # check every package in ./package-lock.json, uv.lock, ...
 ```
+
+`scan` reads `package-lock.json`, `npm-shrinkwrap.json`, `uv.lock`, `poetry.lock` and
+`Cargo.lock` (the TOML ones need Python 3.11+), skips git/path/workspace entries, and
+applies the same rules to every registry package, transitive ones included. Use it once
+when you add pkg-guard to an existing repo, or in CI.
 
 ## Configuration
 
