@@ -19,6 +19,13 @@ The agent sees the reason and fixes its own command.
 - **Covers** npm, pnpm, yarn, bun, npx, pip, uv, uvx, poetry, pipx, cargo, gem, and go (`go get`, `go install`, `go run mod@v`).
 - **Single file, Python stdlib only.** The guard adds no dependencies of its own. Read it in five minutes.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/architecture-dark.svg">
+  <img alt="pkg-guard architecture: the agent's tool call goes through the hook adapter and parser to the package checks, which consult the pass cache, the popular lists and the public registries. The CLI's check and scan commands feed the same parser." src="docs/architecture-light.svg">
+</picture>
+
+The interactive version (zoom, search, trace a path) is [`docs/architecture.html`](docs/architecture.html); download and open it in a browser.
+
 ## What gets blocked
 
 | Signal | Rule |

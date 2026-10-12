@@ -1,0 +1,234 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "pkg-guard",
+    "quality_profile": "showcase",
+    "animation": "trace"
+  },
+  "components": [
+    {
+      "id": "agent",
+      "type": "external",
+      "label": "AI coding agent",
+      "sublabel": "Claude Code, Codex, Gemini",
+      "pos": [
+        40,
+        300
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "hook",
+      "type": "backend",
+      "label": "Hook adapter",
+      "sublabel": "PreToolUse / BeforeTool",
+      "pos": [
+        290,
+        300
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "parser",
+      "type": "backend",
+      "label": "Command + edit parser",
+      "sublabel": "bash / apply_patch / manifests",
+      "pos": [
+        540,
+        300
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "checks",
+      "type": "security",
+      "label": "Package checks",
+      "sublabel": "exists / age / downloads / typo",
+      "pos": [
+        810,
+        300
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "registries",
+      "type": "cloud",
+      "label": "Public registries",
+      "sublabel": "npm / PyPI / crates / gems / Go",
+      "pos": [
+        1080,
+        300
+      ],
+      "size": [
+        170,
+        64
+      ]
+    },
+    {
+      "id": "cache",
+      "type": "database",
+      "label": "Pass cache",
+      "sublabel": "24h, passes only",
+      "pos": [
+        810,
+        120
+      ],
+      "size": [
+        170,
+        60
+      ]
+    },
+    {
+      "id": "popular",
+      "type": "database",
+      "label": "Popular lists",
+      "sublabel": "top 1,000 per registry",
+      "pos": [
+        810,
+        500
+      ],
+      "size": [
+        170,
+        60
+      ]
+    },
+    {
+      "id": "cli",
+      "type": "frontend",
+      "label": "pkg-guard CLI",
+      "sublabel": "check / scan",
+      "pos": [
+        290,
+        500
+      ],
+      "size": [
+        150,
+        60
+      ]
+    },
+    {
+      "id": "lockfiles",
+      "type": "external",
+      "label": "Lockfiles",
+      "sublabel": "package-lock … go.sum",
+      "pos": [
+        40,
+        500
+      ],
+      "size": [
+        150,
+        60
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "pkg_guard.py (one file, stdlib only)",
+      "wraps": [
+        "hook",
+        "parser",
+        "checks",
+        "popular",
+        "cli"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "tool-call",
+      "from": "agent",
+      "to": "hook",
+      "label": "tool call JSON",
+      "variant": "emphasis"
+    },
+    {
+      "id": "normalize",
+      "from": "hook",
+      "to": "parser",
+      "variant": "emphasis"
+    },
+    {
+      "id": "packages",
+      "from": "parser",
+      "to": "checks",
+      "label": "(eco, name)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "lookup",
+      "from": "checks",
+      "to": "registries",
+      "label": "HTTPS",
+      "variant": "emphasis"
+    },
+    {
+      "id": "cache-hit",
+      "from": "checks",
+      "to": "cache",
+      "label": "skip if fresh",
+      "variant": "dashed"
+    },
+    {
+      "id": "lookalike",
+      "from": "checks",
+      "to": "popular",
+      "label": "1 edit away?",
+      "labelDy": 60
+    },
+    {
+      "id": "lock-read",
+      "from": "lockfiles",
+      "to": "cli",
+      "label": "scan"
+    },
+    {
+      "id": "cli-parse",
+      "from": "cli",
+      "to": "parser",
+      "label": "check"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Where it hooks in",
+      "items": [
+        "Shell commands from all three agents",
+        "Manifest edits: Write/Edit, apply_patch, write_file/replace",
+        "One-shot lockfile scans from the CLI"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "What gets blocked",
+      "items": [
+        "Missing names, with a did-you-mean",
+        "First published under 30 days ago",
+        "Few downloads, or one typo from a popular name"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Failure modes",
+      "items": [
+        "Network down: allow and warn",
+        "PKG_GUARD_FAIL_CLOSED=1 blocks instead",
+        "Hook crash: deny, never silently allow"
+      ]
+    }
+  ]
+}
