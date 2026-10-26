@@ -5,5 +5,15 @@
   "author": { "name": "Somesh Ghaturle" },
   "repository": "https://github.com/somesh-ghaturle/pkg-guard",
   "license": "MIT",
-  "keywords": ["security", "supply-chain", "slopsquatting", "hooks"]
+  "keywords": ["security", "supply-chain", "slopsquatting", "hooks"],
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Write|Edit|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/pkg_guard.py\" hook", "timeout": 20 }
+        ]
+      }
+    ]
+  }
 }

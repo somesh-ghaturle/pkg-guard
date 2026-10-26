@@ -74,13 +74,13 @@ timeout = 20
 Optionally give Codex the skill too, so it picks safer packages up front:
 `git clone https://github.com/somesh-ghaturle/pkg-guard /tmp/pkg-guard && mkdir -p ~/.codex/skills && cp -r /tmp/pkg-guard/skills/pkg-guard ~/.codex/skills/`
 
-### Gemini CLI
+### Gemini CLI (extension: hook + skill)
 
 ```bash
-pipx install slopsquat-guard
+gemini extensions install https://github.com/somesh-ghaturle/pkg-guard
 ```
 
-Then merge [`examples/gemini-settings.json`](examples/gemini-settings.json) into `~/.gemini/settings.json`. It checks `run_shell_command` plus `write_file`/`replace` edits to manifests.
+It checks `run_shell_command` plus `write_file`/`replace` edits to manifests. Without the extension: `pipx install slopsquat-guard`, then merge [`examples/gemini-settings.json`](examples/gemini-settings.json) into `~/.gemini/settings.json`.
 
 ### Claude Code without the plugin
 
