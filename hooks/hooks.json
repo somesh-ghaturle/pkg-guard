@@ -4,7 +4,24 @@
       {
         "matcher": "Bash|Write|Edit|MultiEdit",
         "hooks": [
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/pkg_guard.py\" hook", "timeout": 20 }
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/pkg_guard.py\" hook",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "BeforeTool": [
+      {
+        "matcher": "run_shell_command|write_file|replace",
+        "hooks": [
+          {
+            "name": "pkg-guard",
+            "type": "command",
+            "command": "python3 \"${extensionPath}${/}pkg_guard.py\" hook",
+            "timeout": 20000
+          }
         ]
       }
     ]
