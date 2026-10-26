@@ -77,7 +77,7 @@ Optionally give Codex the skill too, so it picks safer packages up front:
 ### Gemini CLI (extension: hook + skill)
 
 ```bash
-gemini extensions install https://github.com/somesh-ghaturle/pkg-guard
+gemini extensions install https://github.com/somesh-ghaturle/pkg-guard --ref main
 ```
 
 It checks `run_shell_command` plus `write_file`/`replace` edits to manifests. Without the extension: `pipx install slopsquat-guard`, then merge [`examples/gemini-settings.json`](examples/gemini-settings.json) into `~/.gemini/settings.json`.
