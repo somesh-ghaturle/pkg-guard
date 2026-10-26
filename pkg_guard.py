@@ -21,7 +21,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
-__version__ = "0.4.2"
+__version__ = "0.4.3"
 UA = "pkg-guard/%s (https://github.com/somesh-ghaturle/pkg-guard)" % __version__
 TIMEOUT = 4
 
